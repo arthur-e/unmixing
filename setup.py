@@ -1,0 +1,41 @@
+from distutils.core import setup
+
+setup(name = 'unmixing',
+    version = '0.1.0.dev',
+    description = 'Interactive tools for spectral mixture analysis of multispectral raster data',
+    author = 'K. Arthur Endsley',
+    author_email = 'endsley@umich.edu',
+    url = 'https://www.github.com/arthur-e/unmixing',
+    classifiers = [
+        'Development Status :: 2',
+        'Intended Audience :: Science/Research',
+        'Topic :: Scientific/Engineering',
+        'Topic :: Scientific/Engineering :: GIS'
+    ],
+    keywords = ['lsma spectral mixture analysis remote sensing raster'],
+    packages = ['unmixing', 'unmixing.test'],
+    py_modules = ['utils', 'lsma', 'transform', 'visualize', 'tests'],
+    install_requires = [
+        'numpy >= 1.8.2',
+        'scipy >= 0.13.3',
+        'matplotlib >= 1.3.1',
+        'cvxopt==1.1.8',
+        'GDAL == 2.1.2',
+        'pykml == 0.1.0',
+        'pysptools >= 0.13.5',
+        'Pillow >= 2.3.0',
+        'scikit-learn==0.17.1'
+    ],
+    package_data = {
+        'unmixing.test': [
+            'clip_features.json',
+            'FeatureSpace_selection_test.kml',
+            'multi3_raster_clip.tiff',
+            'multi3_raster.tiff',
+            'multi7_mask.tiff',
+            'multi7_raster_clip.tiff',
+            'multi7_raster.tiff',
+            'multi7_raster2.tiff'
+            ]
+        }
+    )
