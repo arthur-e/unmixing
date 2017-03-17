@@ -21,6 +21,8 @@ This is a library of interactive tools and functions for:
 - Fully constrained least squares (FCLS) unmixing;
 - Validation of unmixing through a forward model of reflectance;
 
+**For an overview and tutorial on how to use this library, check out the iPython Notebook(s) in the `docs/` folder.**
+
 Installation and Setup
 ======================
 
