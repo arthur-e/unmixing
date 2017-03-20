@@ -21,12 +21,15 @@ This is a library of interactive tools and functions for:
 - Fully constrained least squares (FCLS) unmixing;
 - Validation of unmixing through a forward model of reflectance;
 
-**For an overview and tutorial on how to use this library, check out the iPython Notebook(s) in the ``docs/`` folder:**
+**For an overview and tutorial on how to use this library, check out the iPython Notebook(s) in the** ``docs/`` **folder:**
 
 - <https://github.com/arthur-e/unmixing/blob/master/docs/Overview_LSMA_in_Python.ipynb>
 
 Installation and Setup
 ======================
+
+Because this is a scientific library, there are complex dependencies that may be difficult to install.
+For GNU/Linux systems, particularly Ubuntu, look at ``install.sh`` for a guide on installing the system dependencies required for the Python dependencies.
 
 At this time, installation is intended for development purposes only.
 As such, ``unmixing`` should be installed in "editable" mode using ``pip``; see <https://packaging.python.org/distributing/#working-in-development-mode>.

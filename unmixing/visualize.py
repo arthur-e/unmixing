@@ -36,6 +36,7 @@ class LSMAPlot(object):
         self.dpi = 72
 
         if path is not None:
+            assert os.path.exists(path), 'No such file or directory'
             ds = gdal.Open(path) # (p, lat, lng)
             self.keyword = keyword # A "nickname" for this raster
             self.__wd__ = os.path.dirname(path)
@@ -91,8 +92,11 @@ class LSMAPlot(object):
                     self.rfeatures = self.rfeatures[0:self.__limit__,:]
 
             else:
-                r = int(np.sqrt(self.__limit__))
-                self.rfeatures = self.rfeatures.reshape(self.features.shape)[0:r,0:r,:]
+                self.rfeatures = self.rfeatures.reshape(self.features.shape)
+                # If a limit was specified, select the first N random pixels
+                if self.__limit__ is not None:
+                    r = int(np.sqrt(self.__limit__))
+                    self.rfeatures = self.rfeatures.reshape(self.features.shape)[0:r,0:r,:]
 
             ds = None
 
