@@ -23,6 +23,7 @@ analysis (LSMA). Includes functions:
 * `ravel_and_filter()`
 * `report_raster_dynamic_range()`
 * `subtract_endmember_and_normalize()`
+* `validate_abundance_by_forward_model()`
 '''
 
 import itertools
@@ -31,7 +32,7 @@ import os
 import re
 import numpy as np
 from functools import reduce
-from unmixing.utils import array_to_raster, as_raster, dump_raster, xy_to_pixel, pixel_to_xy, spectra_at_xy
+from unmixing.utils import array_to_raster, as_raster, dump_raster, xy_to_pixel, pixel_to_xy, spectra_at_xy, rmse
 from lxml import etree
 from osgeo import gdal, ogr, osr
 from pykml.factory import KML_ElementMaker as KML
@@ -613,3 +614,70 @@ def subtract_endmember_and_normalize(abundances, e):
 
     return np.apply_along_axis(lambda x: x / x.sum(), 0, stack)\
         .reshape((shp[0] - 1, shp[1], shp[2]))
+
+
+def validate_abundance_by_forward_model(reference, points, *abundances, r=10000, as_pct=True, dd=True, nodata=-9999):
+    '''
+    Validates abundance through a forward model that predicts the
+    reflectance at each pixel from the reflectance of each of
+    the endmembers and their fractional abundances. Arguments:
+        reference   The reference image (e.g., TM/ETM+ reflectance), an np.ndarray or gdal.Dataset
+        points      The XY points at which the endmembers are located
+        abundances  One or more abundance maps, as file paths
+        r           The number of random samples to take from the forward model
+        as_pct      Report RMSE as a percentage?
+        dd          XY points are in decimal degrees?
+        nodata      The NoData value
+    '''
+    # Can accept either a gdal.Dataset or numpy.array instance
+    if not isinstance(reference, np.ndarray):
+        rastr = reference.ReadAsArray()
+
+    else:
+        rastr = reference.copy()
+
+    # Get the spectra for each endmember from the reference dataset
+    spectra = spectra_at_xy(rastr, points, gt = reference.GetGeoTransform(),
+        wkt = reference.GetProjection(), dd = dd)
+
+    # Convert the NoData values to zero reflectance; reshape the array
+    rasrt[rastr==nodata] = 0
+    spectra[spectra==nodata] = 0
+    shp = rastr.shape
+    rast = rastr.reshape((shp[0], shp[1]*shp[2]))
+
+    # Generate 1000 random sampling indices
+    idx = np.random.choice(np.arange(0, rast.shape[1]), r)
+
+    # Predict the reflectances!
+    stats = []
+    for path in abundances:
+        abundance_map, gt, wkt = as_array(path)
+
+        # Get the predicted reflectances
+        preds = predict_spectra_from_abundance(abundance_map, spectra.T)
+
+        # Reshape the abundance map to match the reference reflectance dataset
+        preds = preds.reshape(rast.shape)
+
+        # Take the mean RMSE (sum of RMSE divided by number of pixels), after
+        #   the residuals are normalized by the number of endmembers
+        rmse_value = rmse(rast, preds, idx, n = spectra.shape[0]).sum() / r
+
+        norm = 1
+        if as_pct:
+            # Divide by the range of the measured data; minimum is zero
+            norm = rast.max()
+
+        stats.append(rmse_value / norm)
+
+    for i, p, in enumerate(abundances):
+        if as_pct:
+            print('%s%% -- [%s]' % (str(round(stats[i] * 100, 2)).rjust(15),
+                os.path.basename(p)))
+
+        else:
+            print('%s -- [%s]' % (str(round(stats[i], 2)).rjust(15),
+                os.path.basename(p)))
+
+    return stats
