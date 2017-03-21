@@ -12,11 +12,12 @@ Contains:
 * `cfmask()`
 * `clip_raster()`
 * `clip_raster_file()`
+* `combine_dicts()`
 * `combine_masks()`
 * `composite()`
 * `density_slice()`
 * `dump_raster()`
-* `xy_to_pixel()`
+* `mae()`
 * `mask_ledaps_qa()`
 * `mask_saturation()`
 * `pixel_to_geojson()`
@@ -26,6 +27,7 @@ Contains:
 * `spectra_at_xy()`
 * `stack_hdf_as_array()`
 * `stack_hdf_as_geotiff()`
+* `xy_to_pixel()`
 
 '''
 import json
@@ -438,6 +440,33 @@ def clip_raster_file(rast_path, shp_path, output_path=None, nodata=-9999):
         prototype_ds=rast_path, xoff=xoff, yoff=yoff))
 
 
+def combine_dicts(dict1, dict2):
+    '''
+    Combines two dictionaries that have lists as values. Arguments:
+        dict1   A dictionary
+        dict2   Another dictionary
+    '''
+    d = dict()
+    keys = set(dict1.keys()).union(dict2.keys())
+
+    for key in keys:
+        # Create new lists for missing keys
+        try:
+            d[key] = dict1[key]
+        except KeyError:
+            try:
+                d[key] = dict2[key]
+            except KeyError:
+                pass
+        # Combine lists
+        try:
+            d[key].extend(dict2[key])
+        except KeyError:
+            pass
+
+    return d
+
+
 def combine_masks(*masks, multiply=False):
     '''
     All masks must have the same shape. When multiply=False, the combined
@@ -645,58 +674,6 @@ def dump_raster(rast, rast_path, xoff=0, yoff=0, driver='GTiff', nodata=None):
         sink.GetRasterBand(b).SetNoDataValue(np.float64(nodata))
 
     sink.FlushCache()
-
-
-def xy_to_pixel(ll_pairs, gt=None, wkt=None, path=None, dd=False):
-    '''
-    Modified from code by Zachary Bears (zacharybears.com/using-python-to-
-    translate-latlon-locations-to-pixels-on-a-geotiff/).
-    This method translates given longitude-latitude pairs into pixel
-    locations on a given GeoTIFF. Arguments:
-        ll_pairs    The decimal lat/lon pairings to be translated in the
-                    form [[lon1, lat1], [lon2, lat2]]
-        gt          [Optional] A GDAL GeoTransform tuple
-        wkt         [Optional] Projection information as Well-Known Text
-        path        The file location of the GeoTIFF
-        dd          True to use decimal degrees for longitude-latitude (False
-                    is the default)
-
-    NOTE: This method does not take into account pixel size and assumes a
-            high enough image resolution for pixel size to be insignificant
-    '''
-    assert path is not None or (gt is not None and wkt is not None), \
-        'Function requires either a reference dataset or a geotransform and projection'
-
-    ll_pairs = map(list, ll_pairs)
-    srs = osr.SpatialReference() # Create a spatial ref. for dataset
-
-    if path is not None:
-        ds = gdal.Open(path) # Load the image dataset
-        gt = ds.GetGeoTransform() # Get geotransform of the dataset
-
-        if dd:
-            srs.ImportFromWkt(ds.GetProjection()) # Set up coord. transform.
-
-    else:
-        srs.ImportFromWkt(wkt) # Set up coord. transform.
-
-    # Will use decimal-degrees if so specified
-    if dd:
-        ct = osr.CoordinateTransformation(srs.CloneGeogCS(), srs)
-
-    # Go through all the point pairs and translate them to lng-lat pairs
-    pixel_pairs = []
-    for point in ll_pairs:
-        if dd:
-            # Change the point locations into the GeoTransform space
-            (point[0], point[1], holder) = ct.TransformPoint(point[0], point[1])
-
-        # Translate the x and y coordinates into pixel values
-        x = (point[0] - gt[0]) / gt[1]
-        y = (point[1] - gt[3]) / gt[5]
-        pixel_pairs.append((int(x), int(y))) # Add point to our return array
-
-    return pixel_pairs
 
 
 def mae(reference, predictions, idx=None, n=1):
@@ -1132,3 +1109,55 @@ def subarray(rast, filtered_value=-9999, indices=False):
         return (np.indices(rast_shp)[:,idx.reshape(rast_shp)], arr[:,idx])
 
     return arr[:,idx]
+
+
+def xy_to_pixel(ll_pairs, gt=None, wkt=None, path=None, dd=False):
+    '''
+    Modified from code by Zachary Bears (zacharybears.com/using-python-to-
+    translate-latlon-locations-to-pixels-on-a-geotiff/).
+    This method translates given longitude-latitude pairs into pixel
+    locations on a given GeoTIFF. Arguments:
+        ll_pairs    The decimal lat/lon pairings to be translated in the
+                    form [[lon1, lat1], [lon2, lat2]]
+        gt          [Optional] A GDAL GeoTransform tuple
+        wkt         [Optional] Projection information as Well-Known Text
+        path        The file location of the GeoTIFF
+        dd          True to use decimal degrees for longitude-latitude (False
+                    is the default)
+
+    NOTE: This method does not take into account pixel size and assumes a
+            high enough image resolution for pixel size to be insignificant
+    '''
+    assert path is not None or (gt is not None and wkt is not None), \
+        'Function requires either a reference dataset or a geotransform and projection'
+
+    ll_pairs = map(list, ll_pairs)
+    srs = osr.SpatialReference() # Create a spatial ref. for dataset
+
+    if path is not None:
+        ds = gdal.Open(path) # Load the image dataset
+        gt = ds.GetGeoTransform() # Get geotransform of the dataset
+
+        if dd:
+            srs.ImportFromWkt(ds.GetProjection()) # Set up coord. transform.
+
+    else:
+        srs.ImportFromWkt(wkt) # Set up coord. transform.
+
+    # Will use decimal-degrees if so specified
+    if dd:
+        ct = osr.CoordinateTransformation(srs.CloneGeogCS(), srs)
+
+    # Go through all the point pairs and translate them to lng-lat pairs
+    pixel_pairs = []
+    for point in ll_pairs:
+        if dd:
+            # Change the point locations into the GeoTransform space
+            (point[0], point[1], holder) = ct.TransformPoint(point[0], point[1])
+
+        # Translate the x and y coordinates into pixel values
+        x = (point[0] - gt[0]) / gt[1]
+        y = (point[1] - gt[3]) / gt[5]
+        pixel_pairs.append((int(x), int(y))) # Add point to our return array
+
+    return pixel_pairs

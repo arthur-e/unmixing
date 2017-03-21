@@ -132,33 +132,6 @@ class NNLSAbundance(sp_abundance.NNLS, AbstractAbundanceMapper):
     pass
 
 
-def combine_dicts(dict1, dict2):
-    '''
-    Combines two dictionaries that have lists as values. Arguments:
-        dict1   A dictionary
-        dict2   Another dictionary
-    '''
-    d = dict()
-    keys = set(dict1.keys()).union(dict2.keys())
-
-    for key in keys:
-        # Create new lists for missing keys
-        try:
-            d[key] = dict1[key]
-        except KeyError:
-            try:
-                d[key] = dict2[key]
-            except KeyError:
-                pass
-        # Combine lists
-        try:
-            d[key].extend(dict2[key])
-        except KeyError:
-            pass
-
-    return d
-
-
 def combine_endmembers_and_normalize(abundances, es=(1, 2), at_end=True, nodata=-9999):
     '''
     Combines two endmembers from a fraction image into a single endmember.
