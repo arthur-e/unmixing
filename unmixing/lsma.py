@@ -596,8 +596,8 @@ def report_raster_dynamic_range(path, bands=(1,2,3,4,5,7), tpl='HDF4_EOS:EOS_GRI
             stats = rast.GetRasterBand(i + 1).ComputeStatistics(False)
             dr_by_band.append(dr(stats))
 
-    print('{:s} -- {:.2f} ({:.0f} s.d.)'.format(os.path.basename(path).ljust(lj),
-        np.mean(dr_by_band), sum(dr_by_band)))
+    print('{:.2f} ({:.0f} s.d.) -- {:s}'.format(
+        np.mean(dr_by_band), sum(dr_by_band), os.path.basename(path).ljust(lj)))
 
 
 def subtract_endmember_and_normalize(abundances, e):
