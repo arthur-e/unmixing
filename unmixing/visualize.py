@@ -26,10 +26,11 @@ KML_POLY_TEMPLATE = '''<Placemark><description>%s</description><styleUrl>#defaul
 <MultiGeometry>%s%s</MultiGeometry></Placemark>'''
 
 class LSMAPlot(object):
-    def __init__(self, path=None, mask=None, cut_dim=None, ravel=True, transform=True, nodata=None, feature_limit=90000, epsg=None, keyword=None, verbose=False):
+    def __init__(self, path=None, mask=None, cut_dim=None, ravel=True, transform=True, nodata=None, feature_limit=90000, selected_feature_limit = 30, epsg=None, keyword=None, verbose=False):
         self.__nodata__ = nodata
         self.__raveled__ = ravel
         self.__limit__ = feature_limit
+        self.__sel_limit__ = selected_feature_limit
         self.__verbose__ = verbose
         self.epsg = epsg
         self.size = (9, 9)
@@ -189,9 +190,12 @@ class FeatureSpace(LSMAPlot):
                 np.logical_and(tmp[:,0] < self.x0, tmp[:,1] < self.y0),
                 np.logical_and(tmp[:,0] > self.x1, tmp[:,1] > self.y1))
 
-        # Limit to first 1001 features
-        if selection.shape[1] > 1000:
-            select = selection[:,0:1000,:]
+        # Limit to N random features
+        if selection.shape[1] >= self.__sel_limit__:
+            rfeatures = np.random.choice(np.arange(0, selection.shape[1]),
+                size = self.__sel_limit__, replace = False)
+            rfeatures.sort() # Make it easier to get iterate through them in order
+            selection = selection[:,rfeatures,:]
 
         file_path = os.path.join((output_dir or self.__wd__),
             'FeatureSpace_selection_%s_%d' % ((self.keyword or ''), self.__drawing_index__))
