@@ -1,0 +1,11 @@
+syntax: glob
+
+# Ignore iPython Notebook checkpoints
+*/.ipynb_checkpoints/*
+
+# Ignore bytecode when Python 2 run by mistake
+*.pyc
+
+# Ignore package-related cruft (while in development)
+dist/*
+*.egg-info
