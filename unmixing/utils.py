@@ -28,8 +28,8 @@ Contains:
 * `stack_hdf_as_array()`
 * `stack_hdf_as_geotiff()`
 * `xy_to_pixel()`
-
 '''
+
 import json
 import os
 import re
@@ -187,10 +187,12 @@ def binary_mask(rast, mask, nodata=-9999, invert=False):
     return rastr
 
 
-def cfmask(rast, mask=None, mask_path=None, nodata=-9999):
+def cfmask(rast, mask=None, mask_path=None, nodata=-9999, collection1=True):
     '''
     Applies the CFMask algorithm results to the image as a mask; masks out
-    water, cloud, shadow, and snow (if any).
+    water, cloud, shadow, and snow (if any). For Collection 1 data, uses
+    "Medium" confidence or better for cloud masking (i.e., "Low" confidence
+    pixels are not masked for clouds).
 
     More information on the QA bands can be found on page 14 of this document:
     http://landsat.usgs.gov/documents/cdr_sr_product_guide.pdf
@@ -200,6 +202,8 @@ def cfmask(rast, mask=None, mask_path=None, nodata=-9999):
         mask        A gdal.Dataset or a NumPy array
         mask_path   The path to an EOS HDF4 CFMask raster
         nodata      The NoData value; defaults to -9999.
+        collection1 True indicates the CFMask bit-packing for Collection 1 data
+                    should be used (False for "Pre-Collection")
     '''
     if (mask is None and mask_path is None) or (mask is not None and mask_path is not None):
         raise ValueError('Either `mask` or `mask_path` must be provided; they cannot both be None and only one should be specified')
@@ -227,9 +231,17 @@ def cfmask(rast, mask=None, mask_path=None, nodata=-9999):
     maskr = maskr.reshape((1, maskr.shape[0], maskr.shape[1]))\
         .repeat(rastr.shape[0], axis=0) # Copy the mask across the "bands"
 
-    # Mask out areas that match the mask
-    # 1 = Water, 2 = Shadow, 3 = Snow, 4 = Cloud
-    rastr[maskr > 0] = nodata
+    if collection1:
+        # Mask according to bit-packing described here:
+        # https://landsat.usgs.gov/landsat-surface-reflectance-quality-assessment
+        rastr[np.in1d(maskr,
+            [1, 68, 72, 80, 112, 132, 136, 144, 160, 176, 224])] = nodata
+
+    else:
+        # Mask out areas that match the mask
+        # 1 = Water, 2 = Shadow, 3 = Snow, 4 = Cloud
+        rastr[maskr > 0] = nodata
+
     return rastr
 
 
