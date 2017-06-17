@@ -227,17 +227,20 @@ def cfmask(rast, mask=None, mask_path=None, nodata=-9999, collection1=True):
         maskr = mask_ds.ReadAsArray()
         mask_ds = None
 
-    # Transform into a "1-band" array and apply the mask
-    maskr = maskr.reshape((1, maskr.shape[0], maskr.shape[1]))\
-        .repeat(rastr.shape[0], axis=0) # Copy the mask across the "bands"
-
     if collection1:
         # Mask according to bit-packing described here:
         # https://landsat.usgs.gov/landsat-surface-reflectance-quality-assessment
-        rastr[np.in1d(maskr,
-            [1, 68, 72, 80, 112, 132, 136, 144, 160, 176, 224])] = nodata
+        maskr = np.in1d(maskr.reshape((maskr.shape[0] * maskr.shape[1])),
+            [1, 68, 72, 80, 112, 132, 136, 144, 160, 176, 224])\
+            .reshape((1, maskr.shape[0], maskr.shape[1]))\
+            .repeat(rastr.shape[0], axis=0) # Copy the mask across the "bands"
+        rastr[maskr] = nodata
 
     else:
+        # Transform into a N-band array and apply the mask
+        maskr = maskr.reshape((1, maskr.shape[0], maskr.shape[1]))\
+            .repeat(rastr.shape[0], axis=0) # Copy the mask across the "bands"
+
         # Mask out areas that match the mask
         # 1 = Water, 2 = Shadow, 3 = Snow, 4 = Cloud
         rastr[maskr > 0] = nodata
