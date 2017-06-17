@@ -33,9 +33,9 @@ Contains:
 import json
 import os
 import re
+import numpy as np
 from osgeo import gdal, gdal_array, gdalnumeric, ogr, osr
 from PIL import Image, ImageDraw
-import numpy as np
 
 def as_array(path):
     '''
@@ -187,23 +187,27 @@ def binary_mask(rast, mask, nodata=-9999, invert=False):
     return rastr
 
 
-def cfmask(rast, mask=None, mask_path=None, nodata=-9999, collection1=True):
+def cfmask(rast, mask=None, mask_path=None, mask_values=(1,2,3,4), nodata=-9999):
     '''
     Applies the CFMask algorithm results to the image as a mask; masks out
-    water, cloud, shadow, and snow (if any). For Collection 1 data, uses
-    "Medium" confidence or better for cloud masking (i.e., "Low" confidence
-    pixels are not masked for clouds).
+    water, cloud, shadow, and snow (if any). More information can be found:
+        https://landsat.usgs.gov/landsat-surface-reflectance-quality-assessment
 
-    More information on the QA bands can be found on page 14 of this document:
-    http://landsat.usgs.gov/documents/cdr_sr_product_guide.pdf
+    Landsat 4-7 Pre-Collection pixel_qa values to be masked:
+        mask_values = (1, 2, 3, 4)
+
+    Landsat 4-7 Collection 1 pixel_qa values to be masked (for "Medium" confidence):
+        mask_values = (1, 68, 72, 80, 112, 132, 136, 144, 160, 176, 224)
+
+    Landsat 8 Collection 1 pixel_qa values to be masked (for "Medium" confidence):
+        mask_values = (1, 324, 328, 386, 388, 392, 400, 416, 432, 480, 832, 836, 840, 848, 864, 880, 900, 904, 912, 928, 944, 992, 1024)
 
     Arguments:
         rast        A gdal.Dataset or a NumPy array
         mask        A gdal.Dataset or a NumPy array
         mask_path   The path to an EOS HDF4 CFMask raster
+        mask_values The values in the mask that correspond to NoData pixels
         nodata      The NoData value; defaults to -9999.
-        collection1 True indicates the CFMask bit-packing for Collection 1 data
-                    should be used (False for "Pre-Collection")
     '''
     if (mask is None and mask_path is None) or (mask is not None and mask_path is not None):
         raise ValueError('Either `mask` or `mask_path` must be provided; they cannot both be None and only one should be specified')
@@ -227,23 +231,12 @@ def cfmask(rast, mask=None, mask_path=None, nodata=-9999, collection1=True):
         maskr = mask_ds.ReadAsArray()
         mask_ds = None
 
-    if collection1:
-        # Mask according to bit-packing described here:
-        # https://landsat.usgs.gov/landsat-surface-reflectance-quality-assessment
-        maskr = np.in1d(maskr.reshape((maskr.shape[0] * maskr.shape[1])),
-            [1, 68, 72, 80, 112, 132, 136, 144, 160, 176, 224])\
-            .reshape((1, maskr.shape[0], maskr.shape[1]))\
-            .repeat(rastr.shape[0], axis=0) # Copy the mask across the "bands"
-        rastr[maskr] = nodata
-
-    else:
-        # Transform into a N-band array and apply the mask
-        maskr = maskr.reshape((1, maskr.shape[0], maskr.shape[1]))\
-            .repeat(rastr.shape[0], axis=0) # Copy the mask across the "bands"
-
-        # Mask out areas that match the mask
-        # 1 = Water, 2 = Shadow, 3 = Snow, 4 = Cloud
-        rastr[maskr > 0] = nodata
+    # Mask according to bit-packing described here:
+    # https://landsat.usgs.gov/landsat-surface-reflectance-quality-assessment
+    maskr = np.in1d(maskr.reshape((maskr.shape[0] * maskr.shape[1])), mask_values)\
+        .reshape((1, maskr.shape[0], maskr.shape[1]))\
+        .repeat(rastr.shape[0], axis=0) # Copy the mask across the "bands"
+    rastr[maskr] = nodata
 
     return rastr
 
