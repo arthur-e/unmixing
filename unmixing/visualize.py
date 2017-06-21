@@ -14,7 +14,7 @@ from unmixing.lsma import point_to_pixel_geometry, ravel_and_filter
 from unmixing.utils import as_array, binary_mask, pixel_to_geojson, pixel_to_xy, xy_to_pixel, spectra_at_xy, subarray
 from osgeo import gdal, ogr, osr
 from pylab import plt, figure
-from matplotlib.path import Path
+from matplotlib.path import Path as VectorPath
 import matplotlib.patches as patches
 
 KML_DOC_TEMPLATE ='<?xml version="1.0" encoding="utf-8" ?><kml xmlns="http://www.opengis.net/kml/2.2"><Document>%s%s</Document></kml>'
@@ -340,10 +340,10 @@ class FeatureSpace(LSMAPlot):
         '''
         Draws a 2D (triangular) mixing space.
         '''
-        codes = [Path.MOVETO, Path.LINETO, Path.LINETO, Path.CLOSEPOLY]
+        codes = [VectorPath.MOVETO, VectorPath.LINETO, VectorPath.LINETO, VectorPath.CLOSEPOLY]
         verts = features[...,0:2].tolist()
         verts.append((0, 0)) # Dummy vertex
-        path = Path(verts, codes)
+        path = VectorPath(verts, codes)
         patch = patches.PathPatch(path, facecolor='black', alpha=0.3, lw=0)
         plt.gca().add_patch(patch)
 
