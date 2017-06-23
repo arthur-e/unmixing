@@ -358,30 +358,42 @@ class FeatureSpace(LSMAPlot):
         '''
         assert not self.__raveled__, 'Cannot do this when the input array is raveled'
         m, n, c = self.__dims__
-        pcoords = xy_to_pixel(coords, gt=self.__gt__, wkt=self.__wkt__, dd=dd)
+        pcoords = xy_to_pixel(coords, gt = self.__gt__, wkt = self.__wkt__, dd = dd)
 
         if labels is not None and lpos is None:
-            lpos = [(-10, 10)] * len(labels)
+            lpos = [(10, -10)] * len(labels)
 
         # http://matplotlib.org/api/pyplot_api.html#matplotlib.pyplot.plot
         for i, (x, y) in enumerate(pcoords):
             spec = self.features[x,y,:]
-            plt.plot(spec[m], spec[n], fmt, ms=20, mew=2)
+            plt.plot(spec[m], spec[n], fmt, ms = 20, mew = 2)
 
             if labels is not None:
-                plt.annotate(labels[i], xy=(spec[m], spec[n]), xytext=lpos[i],
-                    textcoords='offset points', ha='right', va='bottom',
-                    fontsize=14, arrowprops=dict(arrowstyle='->',
-                    connectionstyle='arc3,rad=0'))
+                plt.annotate(labels[i], xy = (spec[m], spec[n]), xytext = lpos[i],
+                    textcoords = 'offset points', ha = 'right', va = 'bottom',
+                    fontsize = 14, arrowprops = dict(arrowstyle = '->',
+                    connectionstyle = 'arc3,rad=0'))
 
-    def plot_spectral_points(self, spectra, fmt='r+'):
+    def plot_spectral_points(self, spectra, fmt='r+', labels=None, lpos=None):
         '''
         Plots spectral profiles in feature space.
         '''
         m, n, c = self.__dims__
         assert type(spectra) in (list, tuple, np.ndarray), 'Expected spectra to be a list, tuple, or numpy array'
-        for spec in spectra:
-            plt.plot(spec[m], spec[n], fmt, ms=20, mew=2)
+
+        if labels is not None and lpos is None:
+            lpos = [(30, -30)] * len(labels)
+
+        for i, spec in enumerate(spectra):
+            plt.plot(spec[m], spec[n], fmt, ms = 20, mew = 2)
+
+            if labels is not None:
+                xy = (spec[m], spec[n])
+                plt.annotate(labels[i], xy = xy, xytext = lpos[i],
+                    textcoords = 'offset points', ha = 'right', va = 'bottom',
+                    fontsize = 14, arrowprops = dict(arrowstyle = '->',
+                    connectionstyle = 'arc3,rad=0'))
+
 
     def plot_spectral_profile(self, points, dd=False, scale=1,
             domain=np.array([1,2,3,4,5,7]), labels=None, xlab=None, ylab=None,
