@@ -99,7 +99,7 @@ def as_raster(path):
     return (ds, gt, wkt)
 
 
-def array_to_raster(a, gt, wkt, xoff=None, yoff=None):
+def array_to_raster(a, gt, wkt, xoff=None, yoff=None, dtype=None):
     '''
     Creates a raster from a given array, with optional x- and y-offsets
     if the array was clipped. Arguments:
@@ -108,7 +108,11 @@ def array_to_raster(a, gt, wkt, xoff=None, yoff=None):
         wkt     Well-Known Text projection
         xoff    The offset in the x-direction; should be provided when clipped
         yoff    The offset in the y-direction; should be provided when clipped
+        dtype   The data type to coerce on the array
     '''
+    if dtype is not None:
+        a = a.astype(dtype)
+
     try:
         rast = gdal_array.OpenNumPyArray(a)
 

@@ -347,7 +347,7 @@ def endmembers_by_query(rast, query, gt, wkt, dd=False):
 
 
 def hall_rectification(reference, subject, out_path, ref_set, sub_set, dd=False, nodata=-9999,
-    keys=('High/Bright', 'Low/Dark')):
+    dtype=np.int32, keys=('High/Bright', 'Low/Dark')):
     '''
     Performs radiometric rectification after Hall et al. (1991) in Remote
     Sensing of Environment. Assumes first raster is the reference image and
@@ -361,6 +361,7 @@ def hall_rectification(reference, subject, out_path, ref_set, sub_set, dd=False,
         sub_set     As with ref_set, a sequence of sequences (e.g., list of two
                     lists): [[<bright targets>], [<dark targets]]
         dd          Coordinates are in decimal degrees?
+        dtype       Date type (NumPy dtype) for the array; default is 32-bit Int
         nodata      The NoData value to use fo all the rasters
         keys        The names of the dictionary keys for the bright, dark sets,
                     respectively
@@ -396,8 +397,9 @@ def hall_rectification(reference, subject, out_path, ref_set, sub_set, dd=False,
     arr2[mask == nodata] = nodata # Re-apply NoData values
 
     # Dump the raster to a file
-    dump_raster(array_to_raster(arr2, subject.GetGeoTransform(), subject.GetProjection()),
-        os.path.join(out_path, 'rect_%s' % os.path.basename(subject.GetDescription())))
+    out_path = os.path.join(out_path, 'rect_%s' % os.path.basename(subject.GetDescription()))
+    dump_raster(
+        array_to_raster(arr2, subject.GetGeoTransform(), subject.GetProjection(), dtype=dtype), out_path)
 
 
 def iterate_endmember_combinations(rast, targets, ref_target=None, ndim=3, gt=None, wkt=None, dd=False):
