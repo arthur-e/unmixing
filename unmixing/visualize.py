@@ -49,8 +49,8 @@ class LSMAPlot(object):
             }
 
             if keyword is None:
-                # Look for a Julian date (7 numbers) set off by underscores
-                date_match = re.compile(r'.*_(?P<date>\d{7})_.*').match(os.path.basename(path))
+                # Look for a date (7-8 numbers) set off by underscores
+                date_match = re.compile(r'.*_(?P<date>\d{7,8})_.*').match(os.path.basename(path))
                 if date_match is not None:
                     self.keyword = date_match.groups()[0]
 
