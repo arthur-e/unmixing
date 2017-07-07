@@ -7,7 +7,7 @@ pixels to be masked from the CFMask layer.
 # Common CFMask values; see https://landsat.usgs.gov/landsat-surface-reflectance-quality-assessment
 cfmask_values = {
     # Landsat 4-7 Pre-Collection pixel_qa values to be masked:
-    'pre-collection': (1, 2, 3, 4),
+    'pre-collection': (1, 2, 3, 4, 255),
     'collection1': {
         # Landsat 8 Collection 1 pixel_qa values to be masked
         'landsat8': {

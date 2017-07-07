@@ -234,8 +234,7 @@ class LSMA(Tester):
         arr, gt, wkt = as_array(os.path.join(self.test_dir, 'rect_multi7_raster2.tiff'))
         self.assertTrue(np.array_equal(arr.shape, (6, 74, 81)))
         self.assertTrue(np.array_equiv(arr[:,50,50].round(5), np.array([
-            17.14732725, 1331.89101542, 1442.25422781, 3422.13298698,
-            2916.7473907,  2708.53466489
+            17, 1331, 1442, 3422, 2916, 2708
         ]).round(5)))
 
     def test_point_to_pixel_geometry(self):

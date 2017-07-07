@@ -191,7 +191,7 @@ def binary_mask(rast, mask, nodata=-9999, invert=False):
     return rastr
 
 
-def cfmask(rast, mask=None, mask_path=None, mask_values=(1,2,3,4), nodata=-9999):
+def cfmask(rast, mask=None, mask_path=None, mask_values=(1,2,3,4,255), nodata=-9999):
     '''
     Applies the CFMask algorithm results to the image as a mask; masks out
     water, cloud, shadow, and snow (if any). More information can be found:
