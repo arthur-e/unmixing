@@ -176,6 +176,9 @@ def binary_mask(rast, mask, nodata=-9999, invert=False):
     else:
         maskr = mask.copy()
 
+    if not np.alltrue(np.equal(rastr.shape[-2:], maskr.shape[-2:])):
+        raise ValueError('Raster and mask do not have the same shape')
+
     # Transform into a "1-band" array and apply the mask
     if maskr.shape != rastr.shape:
         maskr = maskr.reshape((1, maskr.shape[0], maskr.shape[1]))\
