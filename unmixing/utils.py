@@ -513,10 +513,10 @@ def combine_masks(*masks, multiply=False):
     return base
 
 
-def composite(reducers, *rasters, normalize='sum', nodata=-9999, dtype=np.float32):
+def composite(reducers, *rasters, normalize='sum', nodata=-9999.0, dtype=np.float32):
     '''
     NOTE: Uses masked arrays in NumPy and therefore is MUCH slower than the
-    `composite()` function, which is equivalent in output.
+    `composite2()` function, which is equivalent in output.
 
     Creates a multi-image (multi-date) composite from input rasters. The
     reducers argument specifies, in the order of the bands (endmembers), how
@@ -569,7 +569,7 @@ def composite(reducers, *rasters, normalize='sum', nodata=-9999, dtype=np.float3
     return final_stack.filled()
 
 
-def composite2(reducers, *rasters, normalize='sum', nodata=-9999, dtype=np.float32):
+def composite2(reducers, *rasters, normalize='sum', nodata=-9999.0, dtype=np.float32):
     '''
     Creates a multi-image (multi-date) composite from input rasters. The
     reducers argument specifies, in the order of the bands (endmembers), how
