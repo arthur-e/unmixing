@@ -32,7 +32,7 @@ import os
 import re
 import numpy as np
 from functools import reduce
-from unmixing.utils import array_to_raster, as_raster, dump_raster, xy_to_pixel, pixel_to_xy, spectra_at_xy, rmse
+from unmixing.utils import array_to_raster, as_array, as_raster, dump_raster, xy_to_pixel, pixel_to_xy, spectra_at_xy, rmse
 from lxml import etree
 from osgeo import gdal, ogr, osr
 from pykml.factory import KML_ElementMaker as KML
@@ -523,16 +523,25 @@ def point_to_pixel_geometry(points, source_epsg=None, target_epsg=None, pixel_si
 def predict_spectra_from_abundance(abundances, endmembers):
     '''
     Predicts the mixed image from the endmember spectra and the fractional
-    abundances, i.e. R = MA + e, where R is the reflectance of a given pixel,
-    M is the matrix of endmember spectra, and A is the matrix of abundances.
+    abundances, i.e. R = AS + e, where R is the reflectance of a given pixel,
+    S is the matrix of endmember spectra, and A is the matrix of abundances.
     Endmembers should be in (p x k) form, where each column corresponds to the
-    spectra of a given endmember. Arguments:
-        abundances  The estimate abundances from LSMA
-        endmembers  The endmember spectra (as a NumPy array)
+    spectra of a given endmember. Return either a (p x 1) vector of the
+    predicted (mixed) spectra or a (p x (m*n)) matrix of the predicted (mixed)
+    spectra for (m*n) total abundance estimates. Arguments:
+        abundances  (1 x k) vector of abundances for k abundance types
+        endmembers  (k x p) vector of endmember spectra for p spectral bands
     '''
-    shp = abundances.shape
-    return np.dot(endmembers, abundances.reshape((shp[0], shp[1]*shp[2])))\
-        .reshape((endmembers.shape[0], shp[1], shp[2]))
+    return np.dot(abundances, endmembers).swapaxes(0, 1)
+
+
+def ravel(arr):
+    '''
+    Reshapes a (p, m, n) array to ((m*n), p) where p is the number of
+    dimensions. Assumes the first axis is the shortest. Arguments:
+        arr     A NumPy array with shape (p, m, n)
+    '''
+    return ravel_and_filter(arr, filter=False)
 
 
 def ravel_and_filter(arr, filter=True, nodata=-9999):
@@ -565,7 +574,8 @@ def ravel_and_filter(arr, filter=True, nodata=-9999):
     return arr
 
 
-def report_raster_dynamic_range(path, bands=(1,2,3,4,5,7), tpl='HDF4_EOS:EOS_GRID:"%s":Grid:sr_band%d', lj=40):
+def report_raster_dynamic_range(path, bands=(1,2,3,4,5,7),
+        tpl='HDF4_EOS:EOS_GRID:"%s":Grid:sr_band%d', lj=40):
     '''
     Prints out the dynamic range of a given raster, averaged across the bands.
     Arguments:
@@ -618,7 +628,9 @@ def subtract_endmember_and_normalize(abundances, e):
         .reshape((shp[0] - 1, shp[1], shp[2]))
 
 
-def validate_abundance_by_forward_model(reference, points, *abundances, r=10000, as_pct=True, dd=True, nodata=-9999):
+def validate_abundance_by_forward_model(
+        reference, points, *abundances, r=10000, as_pct=True, dd=True,
+        nodata=-9999):
     '''
     Validates abundance through a forward model that predicts the
     reflectance at each pixel from the reflectance of each of
@@ -643,7 +655,7 @@ def validate_abundance_by_forward_model(reference, points, *abundances, r=10000,
         wkt = reference.GetProjection(), dd = dd)
 
     # Convert the NoData values to zero reflectance; reshape the array
-    rasrt[rastr==nodata] = 0
+    rastr[rastr==nodata] = 0
     spectra[spectra==nodata] = 0
     shp = rastr.shape
     rast = rastr.reshape((shp[0], shp[1]*shp[2]))
@@ -657,10 +669,8 @@ def validate_abundance_by_forward_model(reference, points, *abundances, r=10000,
         abundance_map, gt, wkt = as_array(path)
 
         # Get the predicted reflectances
-        preds = predict_spectra_from_abundance(abundance_map, spectra.T)
-
-        # Reshape the abundance map to match the reference reflectance dataset
-        preds = preds.reshape(rast.shape)
+        preds = predict_spectra_from_abundance(ravel(abundance_map), spectra)
+        assert preds.shape == rast.shape, 'Prediction and observation matrices are not the same size'
 
         # Take the mean RMSE (sum of RMSE divided by number of pixels), after
         #   the residuals are normalized by the number of endmembers
