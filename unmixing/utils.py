@@ -10,8 +10,6 @@ Contains:
 * `array_to_raster_clone()`
 * `binary_mask()`
 * `cfmask()`
-* `clip_raster()`
-* `clip_raster_file()`
 * `combine_dicts()`
 * `combine_masks()`
 * `composite()`
@@ -26,7 +24,6 @@ Contains:
 * `spectra_at_idx()`
 * `spectra_at_xy()`
 * `stack_hdf_as_array()`
-* `stack_hdf_as_geotiff()`
 * `xy_to_pixel()`
 '''
 
@@ -35,7 +32,6 @@ import os
 import re
 import numpy as np
 from osgeo import gdal, gdal_array, gdalnumeric, ogr, osr
-from PIL import Image, ImageDraw
 
 def as_array(path):
     '''
@@ -263,196 +259,6 @@ def clean_mask(rast):
         rastr = rast.copy()
 
     return np.clip(rastr, a_min=0, a_max=1)
-
-
-def clip_raster(rast, features_path, gt=None, nodata=-9999):
-    '''
-    Clips a raster (given as either a gdal.Dataset or as a numpy.array
-    instance) to a polygon layer provided by a Shapefile (or other vector
-    layer). If a numpy.array is given, a "GeoTransform" must be provided
-    (via dataset.GetGeoTransform() in GDAL). Returns an array. Clip features
-    must be a dissolved, single-part geometry (not multi-part). Modified from:
-
-    http://pcjericks.github.io/py-gdalogr-cookbook/raster_layers.html
-    #clip-a-geotiff-with-shapefile
-
-    Arguments:
-        rast            A gdal.Dataset or a NumPy array
-        features_path   The path to the clipping features
-        gt              An optional GDAL GeoTransform to use instead
-        nodata          The NoData value; defaults to -9999.
-    '''
-    def array_to_image(a):
-        '''
-        Converts a gdalnumeric array to a Python Imaging Library (PIL) Image.
-        '''
-        i = Image.fromstring('L',(a.shape[1], a.shape[0]),
-            (a.astype('b')).tostring())
-        return i
-
-    def image_to_array(i):
-        '''
-        Converts a Python Imaging Library (PIL) array to a gdalnumeric image.
-        '''
-        a = gdalnumeric.fromstring(i.tobytes(), 'b')
-        a.shape = i.im.size[1], i.im.size[0]
-        return a
-
-    def world_to_pixel(geo_matrix, x, y):
-        '''
-        Uses a gdal geomatrix (gdal.GetGeoTransform()) to calculate
-        the pixel location of a geospatial coordinate; from:
-        http://pcjericks.github.io/py-gdalogr-cookbook/raster_layers.html#clip-a-geotiff-with-shapefile
-        '''
-        ulX = geo_matrix[0]
-        ulY = geo_matrix[3]
-        xDist = geo_matrix[1]
-        yDist = geo_matrix[5]
-        rtnX = geo_matrix[2]
-        rtnY = geo_matrix[4]
-        pixel = int((x - ulX) / xDist)
-        line = int((ulY - y) / xDist)
-        return (pixel, line)
-
-    if not os.path.exists(features_path):
-        raise ValueError('File path to cut features does not exist')
-
-    # Can accept either a gdal.Dataset or numpy.array instance
-    if not isinstance(rast, np.ndarray):
-        gt = rast.GetGeoTransform()
-        rast = rast.ReadAsArray()
-
-    # Create an OGR layer from a boundary shapefile
-    features = ogr.Open(features_path)
-    if features.GetDriver().GetName() == 'ESRI Shapefile':
-        lyr = features.GetLayer(os.path.split(os.path.splitext(features_path)[0])[1])
-
-    else:
-        lyr = features.GetLayer()
-
-    # Get the first feature
-    poly = lyr.GetNextFeature()
-
-    # Convert the layer extent to image pixel coordinates
-    minX, maxX, minY, maxY = lyr.GetExtent()
-    ulX, ulY = world_to_pixel(gt, minX, maxY)
-    lrX, lrY = world_to_pixel(gt, maxX, minY)
-
-    # Calculate the pixel size of the new image
-    pxWidth = int(lrX - ulX)
-    pxHeight = int(lrY - ulY)
-
-    # If the clipping features extend out-of-bounds and ABOVE the raster...
-    if gt[3] < maxY:
-        # In such a case... ulY ends up being negative--can't have that!
-        iY = ulY
-        ulY = 0
-
-    # Multi-band image?
-    try:
-        clip = rast[:, ulY:lrY, ulX:lrX]
-
-    except IndexError:
-        clip = rast[ulY:lrY, ulX:lrX]
-
-    # Create a new geomatrix for the image
-    gt2 = list(gt)
-    gt2[0] = minX
-    gt2[3] = maxY
-
-    # Map points to pixels for drawing the boundary on a blank 8-bit,
-    #   black and white, mask image.
-    points = []
-    pixels = []
-    geom = poly.GetGeometryRef()
-    pts = geom.GetGeometryRef(0)
-
-    for p in range(pts.GetPointCount()):
-        points.append((pts.GetX(p), pts.GetY(p)))
-
-    for p in points:
-        pixels.append(world_to_pixel(gt2, p[0], p[1]))
-
-    raster_poly = Image.new('L', (pxWidth, pxHeight), 1)
-    rasterize = ImageDraw.Draw(raster_poly)
-    rasterize.polygon(pixels, 0) # Fill with zeroes
-
-    # If the clipping features extend out-of-bounds and ABOVE the raster...
-    if gt[3] < maxY:
-        # The clip features were "pushed down" to match the bounds of the
-        #   raster; this step "pulls" them back up
-        premask = image_to_array(raster_poly)
-        # We slice out the piece of our clip features that are "off the map"
-        mask = np.ndarray((premask.shape[-2] - abs(iY), premask.shape[-1]), premask.dtype)
-        mask[:] = premask[abs(iY):, :]
-        mask.resize(premask.shape) # Then fill in from the bottom
-
-        # Most importantly, push the clipped piece down
-        gt2[3] = maxY - (maxY - gt[3])
-
-    else:
-        mask = image_to_array(raster_poly)
-
-    # Clip the image using the mask
-    try:
-        clip = gdalnumeric.choose(mask, (clip, nodata))
-
-    # If the clipping features extend out-of-bounds and BELOW the raster...
-    except ValueError:
-        # We have to cut the clipping features to the raster!
-        rshp = list(mask.shape)
-        if mask.shape[-2] != clip.shape[-2]:
-            rshp[0] = clip.shape[-2]
-
-        if mask.shape[-1] != clip.shape[-1]:
-            rshp[1] = clip.shape[-1]
-
-        mask.resize(*rshp, refcheck=False)
-
-        clip = gdalnumeric.choose(mask, (clip, nodata))
-
-    return (clip, ulX, ulY, gt2)
-
-
-def clip_raster_file(rast_path, shp_path, output_path=None, nodata=-9999):
-    '''
-    Clips a raster file as provided by a file path. This method is not careful
-    about NoData values and can lead to unpredictable results. Online clipping
-    with clip_raster() is preferred. Arguments:
-        rast_path       The path to the raster dataset
-        shp_path        The path to a Shapefile with clipping features
-        output_path     The path for the output clipped dataset
-        nodata          The NoData value; defaults to -9999.
-    '''
-
-    def open_array(array, prototype_ds=None, xoff=0, yoff=0):
-        '''
-        This is basically an overloaded version of the gdal_array.OpenArray
-        passing in xoff, yoff explicitly so we can pass these params off to
-        CopyDatasetInfo.
-        '''
-        ds = gdal.Open(gdalnumeric.GetArrayFilename(array))
-
-        if ds is not None and prototype_ds is not None:
-            if type(prototype_ds) == str:
-                prototype_ds = gdal.Open(prototype_ds)
-
-            if prototype_ds is not None:
-                gdalnumeric.CopyDatasetInfo(prototype_ds, ds, xoff=xoff, yoff=yoff)
-
-        return ds
-
-    clip, xoff, yoff, gt = clip_raster(gdal.Open(rast_path), shp_path,
-        nodata=nodata)
-    # Determine what the output file path should be
-    if output_path is None:
-        new_name = ''.join(('.'.join(os.path.basename(rast_path).split('.')[:-1]),
-            '_clip'))
-        output_path = ''.join((os.path.join(os.path.dirname(rast_path),
-            new_name), '.tiff'))
-    driver = gdal.GetDriverByName('GTiff')
-    driver.CreateCopy(output_path, open_array(clip,
-        prototype_ds=rast_path, xoff=xoff, yoff=yoff))
 
 
 def combine_dicts(dict1, dict2):
@@ -999,94 +805,6 @@ def stack_hdf_as_array(path, bands=(1,2,3,4,5,7), tpl=None):
     wkt = layers[0].GetProjection()
     for l in layers: l = None # Close layers
     return (arr, gt, wkt)
-
-
-def stack_hdf_as_geotiff(path, dest=None, gt=None, wkt=None,
-        bands=(1,2,3,4,5,7), preserve_band_nums=False):
-    '''
-    Stacks the layers of an HDF file as an output GeoTIFF; more flexible than
-    stack_hdf_as_array() in that it will allow for non-EOS HDFs to be stacked.
-    Assumes the first layer's spatial reference system is appropriate for all
-    layers.
-        path    The path to a GDAL dataset
-        dest    The output destination file
-        bands   A tuple of the band numbers to include
-        gt      A GDAL GeoTransform
-        wkt     Well-Known Text projection information
-        preserve_band_nums  Should the band numbers be presered in output file?
-    '''
-    driver = gdal.GetDriverByName('GTiff')
-
-    if not os.path.exists(path):
-        raise ValueError('File path not found')
-
-    # Create an output filename (destination)
-    if dest is None:
-        dest = list(os.path.basename(path).rpartition('.'))
-        dest.insert(1, '_stack')
-        dest[-1] = 'tiff'
-        dest = ''.join(dest)
-
-    hdf = gdal.Open(path)
-    # Get the specified band names
-    subdata = hdf.GetSubDatasets()
-
-    # Match only certain band names
-    if all(tuple(map(lambda x: type(x) is int, bands))):
-        layers = []
-        for b in bands:
-            rx = re.compile(r'^HDF(4|5).*:Grid:.*band%d$' % b)
-            layers.append(gdal.Open([
-                s[0] for s in subdata if rx.match(s[0]) is not None
-            ].pop()))
-
-    else:
-        rx = re.compile(r'^HDF(4|5).*:Grid:(' + '|'.join(bands) + ')$')
-        bands = tuple(range(len(bands), 0, -1))
-        layers = [gdal.Open(n) for n in [
-            s[0] for s in subdata if regex.match(s[0]) is not None]
-        ]
-
-    hdf = None
-
-    # Should band 7 always be band 7 (or band 6 if band 6 is missing)?
-    n = len(bands)
-    if preserve_band_nums:
-        n = max(bands)
-
-    # Figure out data type from the first layer, inherit GCS and projection
-    sink = driver.Create(dest, layers[0].RasterXSize, layers[0].RasterYSize,
-        n, layers[0].GetRasterBand(1).DataType)
-
-    if gt is None:
-        sink.SetGeoTransform(layers[0].GetGeoTransform())
-
-    else:
-        sink.SetGeoTransform(gt)
-
-    if wkt is None:
-        sink.SetProjection(layers[0].GetProjection())
-
-    else:
-        sink.SetProjection(wkt)
-
-    for i, layer in enumerate(layers):
-        b = i + 1
-        if preserve_band_nums:
-            b = bands[i]
-
-        dat = layer.ReadAsArray()
-        sink.GetRasterBand(b).WriteArray(dat)
-        sink.GetRasterBand(b).SetStatistics(*map(np.float64,
-            [dat.min(), dat.max(), dat.mean(), dat.std()]))
-
-        # Set the NODATA value, if one is defined
-        nodata = layer.GetRasterBand(1).GetNoDataValue()
-        if nodata is not None:
-            sink.GetRasterBand(b).SetNoDataValue(nodata)
-
-    sink.FlushCache()
-    return sink
 
 
 def subarray(rast, filtered_value=-9999, indices=False):

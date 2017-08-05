@@ -44,7 +44,6 @@ Dependencies
 * ``scipy``
 * ``matplotlib``
 * ``pysptools``
-* ``scikit-learn`` (Required by ``pysptools``)
 * ``GDAL``
 * ``pykml``
 

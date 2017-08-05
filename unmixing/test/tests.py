@@ -33,62 +33,6 @@ class Tester(unittest.TestCase):
                 pass
 
 
-class Clipping(Tester):
-
-    test_dir = TEST_DIR
-    clip_features_path = os.path.join(test_dir, 'clip_features.json')
-
-    def test_clip_multi3_raster_file_checksum(self):
-        '''Should correctly clip a 3-band raster file.'''
-        in_fname = os.path.join(self.test_dir, 'multi3_raster.tiff')
-        out_fname = os.path.join(self.test_dir, 'temp.tiff')
-
-        clip_raster_file(in_fname, self.clip_features_path, out_fname,
-            nodata=0)
-
-        rast = gdal.Open(out_fname).ReadAsArray()
-        self.assertEqual(rast.shape, (3, 15, 19))
-        self.assertTrue((rast[:,1,1] == np.array([260, 398, 199])).all())
-
-    def test_clip_multi7_raster_file_checksum(self):
-        '''Should correctly clip a 7-band raster file.'''
-        #FIXME For some reason, the raster produced this way has no NoData value defined
-        in_fname = os.path.join(self.test_dir, 'multi7_raster.tiff')
-        out_fname = os.path.join(self.test_dir, 'temp2.tiff')
-
-        clip_raster_file(in_fname, self.clip_features_path, out_fname,
-            nodata=0)
-
-        rast = gdal.Open(out_fname).ReadAsArray()
-        self.assertEqual(rast.shape, (6, 15, 19))
-        self.assertTrue((rast[:,14,18] == np.array([0, 0, 0, 0, 0, 0])).all())
-        self.assertTrue((rast[:,1,1] == np.array([199, 398, 260, 2743, 1623, 2130])).all())
-
-    def test_clip_multi7_raster_online_checksum(self):
-        '''
-        Should correctly clip out an array, convert it to a raster, and dump
-        the raster to a file.
-        '''
-        in_fname = os.path.join(self.test_dir, 'multi7_raster.tiff')
-        out_fname = os.path.join(self.test_dir, 'temp3.tiff')
-
-        # Get a clipped array
-        clip, x, y, gt = clip_raster(gdal.Open(in_fname),
-            self.clip_features_path, nodata=0)
-
-        # Convert to a raster based on a prototype
-        rast = array_to_raster_clone(clip, in_fname, x, y)
-
-        # Dump the raster to a file
-        dump_raster(rast, out_fname, x, y, nodata=0)
-
-        rast = gdal.Open(out_fname).ReadAsArray()
-        self.assertEqual(rast.shape, (6, 15, 19))
-        self.assertEqual(rast.shape, clip.shape)
-        self.assertTrue((rast[:,14,18] == np.array([0, 0, 0, 0, 0, 0])).all())
-        self.assertTrue((rast[:,1,1] == np.array([199, 398, 260, 2743, 1623, 2130])).all())
-
-
 class LSMA(Tester):
 
     test_dir = TEST_DIR
