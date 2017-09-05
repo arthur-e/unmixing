@@ -177,9 +177,11 @@ def binary_mask(rast, mask, nodata=-9999, invert=False):
 
     # Transform into a "1-band" array and apply the mask
     if maskr.shape != rastr.shape:
-        maskr = maskr.reshape((1, maskr.shape[0], maskr.shape[1]))\
+        maskr = maskr.reshape((1, maskr.shape[-2], maskr.shape[-1]))\
             .repeat(rastr.shape[0], axis=0) # Copy the mask across the "bands"
 
+    # TODO Compare to place(), e.g.,
+    # np.place(rastr, mask.repeat(rastr.shape[0], axis=0), (nodata,))
     # Mask out areas that match the mask (==1)
     if invert:
         rastr[maskr < 1] = nodata
@@ -192,8 +194,9 @@ def binary_mask(rast, mask, nodata=-9999, invert=False):
 
 def cfmask(rast, mask=None, mask_path=None, mask_values=(1,2,3,4,255), nodata=-9999):
     '''
-    Applies the CFMask algorithm results to the image as a mask; masks out
-    water, cloud, shadow, and snow (if any). More information can be found:
+    Returns a binary mask according to the CFMask algorithm results for the
+    image; mask has a 1 for water, cloud, shadow, and snow (if any) and zero
+    everywhere else. More information can be found:
         https://landsat.usgs.gov/landsat-surface-reflectance-quality-assessment
 
     Landsat 4-7 Pre-Collection pixel_qa values to be masked:
@@ -241,7 +244,7 @@ def cfmask(rast, mask=None, mask_path=None, mask_values=(1,2,3,4,255), nodata=-9
         .repeat(rastr.shape[0], axis=0) # Copy the mask across the "bands"
     rastr[maskr] = nodata
 
-    return rastr
+    return maskr
 
 
 def clean_mask(rast):
@@ -611,35 +614,6 @@ def mask_ledaps_qa(rast, mask, nodata=-9999):
     return rastr
 
 
-def mask_saturation(rast, saturation_value=10000, nodata=-9999):
-    '''
-    Masks out saturated values (e.g., surface reflectance values greater than
-    16,000, however, SR values are only considered valid on the
-    range [0, 10,000]). Arguments:
-        rast                A gdal.Dataset or NumPy array
-        saturation_value    The value beyond which pixels are considered saturated
-        nodata              The NoData value; defaults to -9999.
-    '''
-    # Can accept either a gdal.Dataset or numpy.array instance
-    if not isinstance(rast, np.ndarray):
-        rastr = rast.ReadAsArray()
-
-    else:
-        rastr = rast.copy()
-
-    # Create a baseline "nothing is saturated in any band" raster
-    mask = np.empty((1, rastr.shape[1], rastr.shape[2]))
-    mask.fill(False)
-
-    # Update the mask for saturation in any band
-    for i in range(rastr.shape[0]):
-        np.logical_or(mask, rastr[i,...] > saturation_value, out=mask)
-
-    # Repeat the NoData value across the bands
-    np.place(rastr, mask.repeat(rastr.shape[0], axis=0), (nodata,))
-    return rastr
-
-
 def pixel_to_geojson(pixel_pairs, gt=None, wkt=None, path=None, indent=2):
     '''
     This method translates given pixel locations into longitude-latitude
@@ -741,6 +715,34 @@ def rmse(reference, predictions, idx=None, n=1):
     return np.sqrt(
         np.apply_along_axis(lambda x: np.divide(np.square(x).sum(), n), 0,
             residuals))
+
+
+def saturation_mask(rast, saturation_value=10000, nodata=-9999):
+    '''
+    Returns a binary mask that has 1 for saturated values (e.g., surface
+    reflectance values greater than 16,000, however, SR values are only
+    considered valid on the range [0, 10,000]) and zero everywhere else.
+    Arguments:
+        rast                A gdal.Dataset or NumPy array
+        saturation_value    The value beyond which pixels are considered saturated
+        nodata              The NoData value; defaults to -9999.
+    '''
+    # Can accept either a gdal.Dataset or numpy.array instance
+    if not isinstance(rast, np.ndarray):
+        rastr = rast.ReadAsArray()
+
+    else:
+        rastr = rast.copy()
+
+    # Create a baseline "nothing is saturated in any band" raster
+    mask = np.empty((1, rastr.shape[1], rastr.shape[2]))
+    mask.fill(False)
+
+    # Update the mask for saturation in any band
+    for i in range(rastr.shape[0]):
+        np.logical_or(mask, rastr[i,...] > saturation_value, out=mask)
+
+    return mask
 
 
 def spectra_at_idx(hsi_cube, idx):

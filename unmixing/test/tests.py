@@ -377,7 +377,8 @@ class Utilities(Tester):
         '''
         out_fname = os.path.join(self.test_dir, 'temp.tiff')
         rast, gt, wkt = as_array(os.path.join(self.test_dir, 'multi7_raster.tiff'))
-        masked = mask_saturation(rast)
+        mask = saturation_mask(rast)
+        masked = binary_mask(rast, mask)
         self.assertEqual(masked.shape, (6, 74, 81))
         self.assertEqual(masked.mean().round(0), 881.0)
         self.assertTrue((masked[:,15,19] == np.array([348, 576, 374, 3159, 2033, 2386])).all())
@@ -456,8 +457,9 @@ class Utilities(Tester):
         '''
         file_path = os.path.join(self.test_dir, 'multi7_raster.tiff')
         ds = gdal.Open(file_path)
-        mask = gdal.Open(os.path.join(self.test_dir, 'multi7_mask.tiff'))
-        masked = cfmask(ds, mask, nodata=-9999)
+        raw_mask = gdal.Open(os.path.join(self.test_dir, 'multi7_mask.tiff'))
+        mask = cfmask(ds, raw_mask, nodata=-9999)
+        masked = binary_mask(ds.ReadAsArray(), mask)
         self.assertEqual(ds.ReadAsArray().diagonal()[0,0], 0)
         self.assertEqual(masked.diagonal()[0,0], -9999)
 
