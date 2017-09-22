@@ -244,7 +244,7 @@ def cfmask(rast, mask=None, mask_path=None, mask_values=(1,2,3,4,255), nodata=-9
     # Mask according to bit-packing described here:
     # https://landsat.usgs.gov/landsat-surface-reflectance-quality-assessment
     maskr = np.in1d(maskr.reshape((maskr.shape[0] * maskr.shape[1])), mask_values)\
-        .reshape((1, maskr.shape[0], maskr.shape[1]))
+        .reshape((1, maskr.shape[0], maskr.shape[1])).astype(np.int0)
 
     return maskr
 
@@ -450,7 +450,7 @@ def composite2(reducers, *rasters, normalize='sum', nodata=-9999.0, dtype=np.flo
     return final_stack
 
 
-def density_slice(rast, rel=np.less_equal, threshold=1000):
+def density_slice(rast, rel=np.less_equal, threshold=1000, nodata=-9999):
     '''
     Returns a density slice from a given raster. Arguments:
         rast        A gdal.Dataset or a NumPy array
@@ -467,7 +467,9 @@ def density_slice(rast, rel=np.less_equal, threshold=1000):
     if (len(rastr.shape) > 2 and min(rastr.shape) > 1):
         raise ValueError('Expected a single-band raster array')
 
-    return rel(rastr, np.ones(rast.shape) * threshold).astype(np.int16)
+    return np.logical_and(
+        rel(rastr, np.ones(rast.shape) * threshold),
+        np.not_equal(rastr, np.ones(rast.shape) * nodata)).astype(np.int0)
 
 
 def dump_raster(rast, rast_path, xoff=0, yoff=0, driver='GTiff', nodata=None):
