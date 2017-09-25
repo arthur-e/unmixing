@@ -196,7 +196,7 @@ def binary_mask(rast, mask, nodata=-9999, invert=False):
     return rastr
 
 
-def cfmask(rast, mask=None, mask_path=None, mask_values=(1,2,3,4,255), nodata=-9999):
+def cfmask(mask, mask_values=(1,2,3,4,255), nodata=-9999):
     '''
     Returns a binary mask according to the CFMask algorithm results for the
     image; mask has True for water, cloud, shadow, and snow (if any) and False
@@ -213,33 +213,16 @@ def cfmask(rast, mask=None, mask_path=None, mask_values=(1,2,3,4,255), nodata=-9
         mask_values = (1, 324, 328, 386, 388, 392, 400, 416, 432, 480, 832, 836, 840, 848, 864, 880, 900, 904, 912, 928, 944, 992, 1024)
 
     Arguments:
-        rast        A gdal.Dataset or a NumPy array
         mask        A gdal.Dataset or a NumPy array
         mask_path   The path to an EOS HDF4 CFMask raster
         mask_values The values in the mask that correspond to NoData pixels
         nodata      The NoData value; defaults to -9999.
     '''
-    if (mask is None and mask_path is None) or (mask is not None and mask_path is not None):
-        raise ValueError('Either `mask` or `mask_path` must be provided; they cannot both be None and only one should be specified')
-
-    # Can accept either a gdal.Dataset or numpy.array instance
-    if not isinstance(rast, np.ndarray):
-        rastr = rast.ReadAsArray()
+    if not isinstance(mask, np.ndarray):
+        maskr = mask.ReadAsArray()
 
     else:
-        rastr = rast.copy()
-
-    if mask is not None:
-        if not isinstance(mask, np.ndarray):
-            maskr = mask.ReadAsArray()
-
-        else:
-            maskr = mask.copy()
-
-    if mask_path is not None:
-        mask_ds = gdal.Open('HDF4_EOS:EOS_GRID:"%s":Grid:cfmask' % mask_path)
-        maskr = mask_ds.ReadAsArray()
-        mask_ds = None
+        maskr = mask.copy()
 
     # Mask according to bit-packing described here:
     # https://landsat.usgs.gov/landsat-surface-reflectance-quality-assessment
