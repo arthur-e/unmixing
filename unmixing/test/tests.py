@@ -301,7 +301,7 @@ class Transforms(Tester):
 
         # Load the array; apply the transform
         rast, gt, wkt = as_array(in_fname)
-        tm_image = tasseled_cap_tm(rast)
+        tm_image = tasseled_cap_tm(rast, ncomp = 6)
         self.assertEqual(tm_image.shape, (6, 74, 81))
         self.assertEqual(tm_image.mean().round(0), 212.0)
         self.assertTrue((tm_image[:,1,1] == np.array([0, 0, 0, 0, 0, 0])).all())
@@ -317,7 +317,7 @@ class Transforms(Tester):
 
         # Load the array; apply the transform
         rast, gt, wkt = as_array(in_fname)
-        bci_image = biophysical_composition_index(tasseled_cap_tm(rast))
+        bci_image = biophysical_composition_index(tasseled_cap_tm(rast, ncomp = 3))
         self.assertEqual(bci_image.shape, (1, 74, 81))
         self.assertEqual((bci_image.mean() * 100).round(0), -65.0)
         self.assertTrue((bci_image[:,1,1].round(3) == np.array([-0.574])).all())

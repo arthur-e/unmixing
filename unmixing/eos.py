@@ -16,7 +16,8 @@ cfmask_values = {
         },
         # Landsat 4-7 Collection 1 pixel_qa values to be masked
         'landsat4-7': {
-            'medium+': (68, 72, 80, 112, 132, 136, 144, 160, 176, 224)
+            'medium+': (68, 72, 80, 112, 132, 136, 144, 160, 176, 224),
+            'medium+_exclude_water': (72, 80, 112, 136, 144, 160, 176, 224)
         }
     }
 }
