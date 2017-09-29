@@ -18,6 +18,7 @@ analysis (LSMA). Includes functions:
 * `endmembers_by_query()`
 * `hall_rectification()`
 * `iterate_endmember_combinations()`
+* `normalize_reflectance_within_image()`
 * `predict_spectra_from_abundance()`
 * `point_to_pixel_geometry()`
 * `ravel_and_filter()`
@@ -466,10 +467,44 @@ def iterate_endmember_combinations(rast, targets, ref_target=None, ndim=3, gt=No
     if ref_target is not None:
         spec_map = list(map(list, spec_map))
         for spec in spec_map:
-            #FIXME Cannot use insert with tuples when dictionary input is provided
+            # FIXME Cannot use insert with tuples when dictionary input is provided
             spec.insert(0, ref_spec)
 
     return (spec_map, coord_map)
+
+
+def normalize_reflectance_within_image(rast, nodata=-9999, scale=100):
+    '''
+    Following Wu (2004, Remote Sensing of Environment), normalizes the
+    reflectances in each pixel by the average reflectance *across bands.*
+    This is an attempt to mitigate within-endmember variability. Arguments:
+        rast    A gdal.Dataset or numpy.array instance
+        nodata  The NoData value to use (and value to ignore)
+        scale   (Optional) Wu's definition scales the normalized reflectance
+                by 100 for some reason; another reasonable value would
+                be 10,000 (approximating scale of Landsat reflectance units);
+                set to None for no scaling.
+    '''
+    # Can accept either a gdal.Dataset or numpy.array instance
+    if not isinstance(rast, np.ndarray):
+        rastr = rast.ReadAsArray()
+
+    else:
+        rastr = rast.copy()
+
+    shp = rastr.shape
+    rastr_normalized = np.divide(
+        rastr.reshape((shp[0], shp[1]*shp[2])),
+        rastr.mean(axis=0).reshape((1, shp[1]*shp[2])).repeat(shp[0], axis=0))
+
+    # Recover original shape; scale if necessary
+    rastr_normalized = rastr_normalized.reshape(shp)
+    if scale is not None:
+        rastr_normalized = np.multiply(rastr_normalized, scale)
+
+    # Fill in the NoData areas from the original raster
+    np.place(rastr_normalized, rastr == nodata, nodata)
+    return rastr_normalized
 
 
 def point_to_pixel_geometry(points, source_epsg=None, target_epsg=None, pixel_side_length=30):
