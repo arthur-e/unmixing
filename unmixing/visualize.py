@@ -26,7 +26,7 @@ KML_POLY_TEMPLATE = '''<Placemark><description>%s</description><styleUrl>#defaul
 <MultiGeometry>%s%s</MultiGeometry></Placemark>'''
 
 class LSMAPlot(object):
-    def __init__(self, path=None, mask=None, cut_dim=None, ravel=True, transform=True, nodata=None, feature_limit=90000, selected_feature_limit = 30, epsg=None, keyword=None, verbose=False):
+    def __init__(self, path=None, mask=None, cut_dim=None, ravel=True, transform=True, nodata=None, feature_limit=90000, selected_feature_limit=30, epsg=None, keyword=None, verbose=False):
         self.__nodata__ = nodata
         self.__raveled__ = ravel
         self.__limit__ = feature_limit

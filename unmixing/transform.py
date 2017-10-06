@@ -166,6 +166,8 @@ def tasseled_cap_etm_plus(rast, toa=True, offset=False, nodata=-9999, ncomp=3):
     '''
     Applies the Tasseled Cap transformation for ETM+ data. The coefficients
     for come from Liu et al. (2016) in the Journal of Spatial Science.
+    Coefficients available for either top-of-atmosphere (TOA) or digital
+    number (DN) data.
     Arguments:
         rast        The raster to be transformed
         toa         Are the raster values (at-satellite) reflectances?
@@ -185,7 +187,7 @@ def tasseled_cap_etm_plus(rast, toa=True, offset=False, nodata=-9999, ncomp=3):
         ], dtype=np.float32)
 
     else:
-        r = np.array([
+        r = np.array([ # For digital number (DN) data
             ( 0.3627, 0.4005, 0.5216, 0.2600, 0.4279, 0.4304),
             (-0.0997, 0.0074,-0.1985, 0.9230, 0.0673,-0.3068),
             ( 0.4217, 0.3581, 0.3210,-0.0024,-0.6037,-0.4759)
