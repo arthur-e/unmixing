@@ -192,3 +192,48 @@ def biophysical_composition_index(rast, tc_func=tasseled_cap_tm, nodata=-9999):
         np.subtract(np.divide(np.add(h, l), unit * 2), v),
         np.add(np.divide(np.add(h, l), unit * 2), v))\
         .reshape((1, shp[1], shp[2]))
+
+
+def rndsi(rast, tc_func=tasseled_cap_tm, bands=(6,2), nodata=-9999):
+    '''
+    Calculates the ratio normalized difference soil index (RNDSI) after
+    Deng et al. (2015) in Int. J. of App. Earth Obs. and Geoinf. Arguments:
+        rast    A NumPy Array or gdal.Dataset instance
+        tc_func The function to be used to transform the input raster to
+                Tasseled Cap brightness, greenness, and wetness
+        bands   A tuple of integers, the SWIR2 band number and the Green band
+                number, in that order
+        nodata  The NoData value to ignore
+    '''
+    # Can accept either a gdal.Dataset or numpy.array instance
+    if not isinstance(rast, np.ndarray):
+        arr = rast.ReadAsArray()
+
+    else:
+        arr = rast
+
+    shp = arr.shape
+
+    # Perform the tasseled cap rotation; obtain TC1
+    tc1 = tc_func(arr, ncomp=1)
+    tc1 = np.where(arr[0,...] == nodata, np.nan, tc1)
+
+    # Calculate NDSI
+    b_swir2, b_green = tuple(map(lambda x: x - 1, bands))
+    ndsi = np.divide(
+        np.subtract(arr[b_swir2,...], arr[b_green,...]),
+        np.add(arr[b_swir2,...], arr[b_green,...])).reshape((1, shp[1], shp[2]))
+    ndsi = np.where(arr[0,...] == nodata, np.nan, ndsi)
+
+    # Calculate normalized TC1
+    ntc1 = np.divide(
+        np.subtract(tc1, np.nanmin(tc1)),
+        np.subtract(np.nanmax(tc1), np.nanmin(tc1)))
+
+    # Calculate normalized NNDSI
+    nndsi = np.divide(
+        np.subtract(ndsi, np.nanmin(ndsi)),
+        np.subtract(np.nanmax(ndsi), np.nanmin(ndsi)))
+
+    rndsi = np.divide(nndsi, np.where(ntc1 == 0, np.nan, ntc1))
+    return np.where(rndsi == np.nan, nodata, rndsi)
