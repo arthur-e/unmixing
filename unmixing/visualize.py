@@ -483,6 +483,23 @@ def cumulative_freq_plot(rast, band=0, mask=None, bins=100, xlim=None, nodata=-9
     return arr
 
 
+def histogram(arr, valid_range=(0, 1), bins=10, normed=False, cumulative=False,
+        file_path='hist.png', title=None):
+    '''
+    Plots a histogram for an input array over a specified range.
+    '''
+    # Can accept either a gdal.Dataset or numpy.array instance
+    if not isinstance(arr, np.ndarray):
+        arr = arr.ReadAsArray()
+
+    plt.hist(arr.ravel(), range=valid_range, bins=bins, normed=normed,
+        cumulative=cumulative)
+    if title is not None:
+        plt.title(title)
+
+    plt.savefig(file_path)
+
+
 if __name__ == '__main__':
     path = sys.argv[1]
     m = int(sys.argv[2])
