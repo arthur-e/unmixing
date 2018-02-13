@@ -6,8 +6,13 @@ Tasseled Cap transformation.
 import numpy as np
 from pysptools.noise import MNF
 
-def __tasseled_cap__(rast, r, offset, nodata, ncomp=3):
-    shp = rast.shape
+def __tasseled_cap__(rast, rt, offset, ncomp=3):
+    shp = shp2 = rast.shape
+
+    # Some transformation matrices are abbreviated (e.g., they
+    #   describe only the first 3 TC components)
+    if rast.shape[0] != rt.shape[0]:
+        shp2 = (rt.shape[0], shp[1], shp[2])
 
     # Should a translation be performed to prevent negative values?
     # TODO Offset does not exclude the possibility of the NoData value
@@ -23,10 +28,11 @@ def __tasseled_cap__(rast, r, offset, nodata, ncomp=3):
     else:
         x = rast.reshape(shp[0], shp[1]*shp[2])
 
+    # Apply the transformation matrix rt
     if offset:
-        return np.add(np.dot(r, x).reshape(shp), f)[0:ncomp, ...]
+        return np.add(np.dot(rt, x).reshape(shp2), f)[0:ncomp, ...]
 
-    return np.dot(r, x).reshape(shp)[0:ncomp, ...]
+    return np.dot(rt, x).reshape(shp2)[0:ncomp, ...]
 
 
 def ndvi(rast, red_idx=2, nir_idx=3):
@@ -86,7 +92,7 @@ def tasseled_cap_oli(rast, offset=False, nodata=-9999, ncomp=3):
         ( 0.1079,-0.9023, 0.4119, 0.0575,-0.0259, 0.0252)
     ], dtype=np.float32)
 
-    return __tasseled_cap__(rast, r, offset, nodata, ncomp)
+    return __tasseled_cap__(rast, r, offset, ncomp)
 
 
 def tasseled_cap_tm(rast, reflectance=True, offset=False, nodata=-9999,
@@ -125,7 +131,7 @@ def tasseled_cap_tm(rast, reflectance=True, offset=False, nodata=-9999,
             ( 0.1446, 0.1761, 0.3322, 0.3396,-0.6210, 0.4186)  # Wetness
         ])
 
-    return __tasseled_cap__(rast, r, offset, nodata, ncomp)
+    return __tasseled_cap__(rast, r, offset, ncomp)
 
 
 def tasseled_cap_etm_plus(rast, toa=True, offset=False, nodata=-9999, ncomp=3):
@@ -159,7 +165,7 @@ def tasseled_cap_etm_plus(rast, toa=True, offset=False, nodata=-9999, ncomp=3):
             ( 0.4217, 0.3581, 0.3210,-0.0024,-0.6037,-0.4759)
         ], dtype=np.float32)
 
-    return __tasseled_cap__(rast, r, offset, nodata, ncomp)
+    return __tasseled_cap__(rast, r, offset, ncomp)
 
 
 def biophysical_composition_index(rast, tc_func=tasseled_cap_tm, nodata=-9999):
