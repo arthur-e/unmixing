@@ -685,7 +685,7 @@ def pixel_to_xy(pixel_pairs, gt=None, wkt=None, path=None, dd=False):
         ct = osr.CoordinateTransformation(srs, srs.CloneGeogCS())
 
     # Go through all the point pairs and translate them to pixel pairings
-    ll_pairs = []
+    xy_pairs = []
     for point in pixel_pairs:
         # Translate the pixel pairs into untranslated points
         lon = point[0] * gt[1] + gt[0]
@@ -693,9 +693,9 @@ def pixel_to_xy(pixel_pairs, gt=None, wkt=None, path=None, dd=False):
         if dd:
             (lon, lat, holder) = ct.TransformPoint(lon, lat) # Points to space
 
-        ll_pairs.append((lon, lat)) # Add the point to our return array
+        xy_pairs.append((lon, lat)) # Add the point to our return array
 
-    return ll_pairs
+    return xy_pairs
 
 
 def rmse(reference, predictions, idx=None, n=1):
@@ -765,12 +765,12 @@ def spectra_at_idx(hsi_cube, idx):
     return np.array([hsi_cube[p[0],p[1],:] for p in idx])
 
 
-def spectra_at_xy(rast, ll, gt=None, wkt=None, dd=False):
+def spectra_at_xy(rast, xy, gt=None, wkt=None, dd=False):
     '''
     Returns the spectral profile of the pixels indicated by the longitude-
     latitude pairs provided. Arguments:
         rast    A gdal.Dataset or NumPy array
-        ll      An array of longitude-latitude pairs
+        xy      An array of X-Y (e.g., longitude-latitude) pairs
         gt      A GDAL GeoTransform tuple; ignored for gdal.Dataset
         wkt     Well-Known Text projection information; ignored for gdal.Dataset
         dd      Interpret the longitude-latitude pairs as decimal degrees
@@ -783,7 +783,7 @@ def spectra_at_xy(rast, ll, gt=None, wkt=None, dd=False):
 
     # You would think that transposing the matrix can't be as fast as
     #   transposing the coordinate pairs, however, it is.
-    return spectra_at_idx(rast.transpose(), xy_to_pixel(ll,
+    return spectra_at_idx(rast.transpose(), xy_to_pixel(xy,
         gt=gt, wkt=wkt, dd=dd))
 
 
@@ -855,14 +855,14 @@ def subarray(rast, filtered_value=-9999, indices=False):
     return arr[:,idx]
 
 
-def xy_to_pixel(ll_pairs, gt=None, wkt=None, path=None, dd=False):
+def xy_to_pixel(xy_pairs, gt=None, wkt=None, path=None, dd=False):
     '''
     Modified from code by Zachary Bears (zacharybears.com/using-python-to-
     translate-latlon-locations-to-pixels-on-a-geotiff/).
     This method translates given longitude-latitude pairs into pixel
     locations on a given GeoTIFF. Arguments:
-        ll_pairs    The decimal lat/lon pairings to be translated in the
-                    form [[lon1, lat1], [lon2, lat2]]
+        xy_pairs    The X-Y coordinate pairs (e.g., decimal lat/lon pairs) to
+                    be translated in the form [[lon1, lat1], [lon2, lat2]]
         gt          [Optional] A GDAL GeoTransform tuple
         wkt         [Optional] Projection information as Well-Known Text
         path        The file location of the GeoTIFF
@@ -870,12 +870,16 @@ def xy_to_pixel(ll_pairs, gt=None, wkt=None, path=None, dd=False):
                     is the default)
 
     NOTE: This method does not take into account pixel size and assumes a
-            high enough image resolution for pixel size to be insignificant
+    high enough image resolution for pixel size to be insignificant.
+    Essentially, xy_pairs assumed to be pixel centroids but may be assigned
+    to the nearest neighbor of the intended pixel. For this reason, for
+    relevant applications, target pixels should be embedded in a matrix
+    of similar pixels, e.g., a 90-by-90 meter area, for Landsat pixels.
     '''
     assert path is not None or (gt is not None and wkt is not None), \
         'Function requires either a reference dataset or a geotransform and projection'
 
-    ll_pairs = map(list, ll_pairs)
+    xy_pairs = map(list, xy_pairs)
     srs = osr.SpatialReference() # Create a spatial ref. for dataset
 
     if path is not None:
@@ -894,7 +898,7 @@ def xy_to_pixel(ll_pairs, gt=None, wkt=None, path=None, dd=False):
 
     # Go through all the point pairs and translate them to lng-lat pairs
     pixel_pairs = []
-    for point in ll_pairs:
+    for point in xy_pairs:
         if dd:
             # Change the point locations into the GeoTransform space
             (point[0], point[1], holder) = ct.TransformPoint(point[0], point[1])
