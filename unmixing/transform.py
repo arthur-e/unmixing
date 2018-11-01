@@ -35,7 +35,7 @@ def __tasseled_cap__(rast, rt, offset, ncomp=3):
     return np.dot(rt, x).reshape(shp2)[0:ncomp, ...]
 
 
-def ndvi(rast, red_idx=2, nir_idx=3):
+def ndvi(rast, red_idx=2, nir_idx=3, nodata=-9999):
     '''
     Calculates the normalized difference vegetation index (NDVI). Arguments:
         rast    An input raster or NumPy array
@@ -49,9 +49,12 @@ def ndvi(rast, red_idx=2, nir_idx=3):
     else:
         rastr = rast.copy()
 
-    #TODO Does not account for NoData values
-    return np.divide(rastr[nir_idx,...] - rastr[red_idx,...],
-        rastr[nir_idx,...] + rastr[red_idx,...])
+    # Where there is NoData, return NoData, else return NDVI calculation
+    return np.where(np.logical_and(
+        rastr[nir_idx,...] == nodata, rastr[red_idx,...] == nodata), nodata,
+        np.divide(
+            rastr[nir_idx,...] - rastr[red_idx,...],
+            rastr[nir_idx,...] + rastr[red_idx,...]))
 
 
 def mnf_rotation(rast, nodata=-9999):

@@ -26,6 +26,12 @@ KML_POLY_TEMPLATE = '''<Placemark><description>%s</description><styleUrl>#defaul
 <MultiGeometry>%s%s</MultiGeometry></Placemark>'''
 
 class LSMAPlot(object):
+    '''
+    An abstract class for plotting raster data. Arguments:
+    path    The path to the raster file to plot from
+    mask    The path to the raster file representing a mask to apply to the
+            data; non-zero pixels in the mask will be masked out of the data
+    '''
     def __init__(self, path=None, mask=None, cut_dim=None, ravel=True, transform=True, nodata=None, feature_limit=90000, selected_feature_limit=30, epsg=None, keyword=None, verbose=False):
         self.__nodata__ = nodata
         self.__raveled__ = ravel

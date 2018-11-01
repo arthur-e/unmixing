@@ -15,6 +15,7 @@ Contains:
 * `composite()`
 * `density_slice()`
 * `dump_raster()`
+* `get_coord_transform()`
 * `mae()`
 * `mask_ledaps_qa()`
 * `mask_saturation()`
@@ -487,6 +488,25 @@ def dump_raster(rast, rast_path, xoff=0, yoff=0, driver='GTiff', nodata=None):
         sink.GetRasterBand(b).SetNoDataValue(np.float64(nodata))
 
     sink.FlushCache()
+
+
+def get_coord_transform(source_epsg, target_epsg):
+    '''
+    Creates an OGR-framework coordinate transformation for use in projecting
+    coordinates to a new coordinate reference system (CRS). Used as, e.g.:
+        transform = get_coord_transform(source_epsg, target_epsg)
+        transform.TransformPoint(x, y)
+    Arguments:
+        source_epsg     The EPSG code for the source CRS
+        target_epsg     The EPSG code for the target CRS
+    '''
+    # Develop a coordinate transformation, if desired
+    transform = None
+    source_ref = osr.SpatialReference()
+    target_ref = osr.SpatialReference()
+    source_ref.ImportFromEPSG(source_epsg)
+    target_ref.ImportFromEPSG(target_epsg)
+    return osr.CoordinateTransformation(source_ref, target_ref)
 
 
 def mae(reference, predictions, idx=None, n=1):
