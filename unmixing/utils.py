@@ -16,6 +16,7 @@ Contains:
 * `density_slice()`
 * `dump_raster()`
 * `get_coord_transform()`
+* `intersect_arrays()`
 * `mae()`
 * `mask_ledaps_qa()`
 * `mask_saturation()`
@@ -34,7 +35,7 @@ import re
 import numpy as np
 from osgeo import gdal, gdal_array, gdalnumeric, ogr, osr
 
-def as_array(path):
+def as_array(path, band_axis=True):
     '''
     A convenience function for opening a raster as an array and accessing its
     spatial information; takes a single string argument.
@@ -44,6 +45,12 @@ def as_array(path):
     gt = ds.GetGeoTransform()
     wkt = ds.GetProjection()
     ds = None
+
+    # Make sure that single-band rasters have a band axis
+    if band_axis and len(arr.shape) < 3:
+        shp = arr.shape
+        arr = arr.reshape((1, shp[0], shp[1]))
+
     return (arr, gt, wkt)
 
 
@@ -507,6 +514,45 @@ def get_coord_transform(source_epsg, target_epsg):
     source_ref.ImportFromEPSG(source_epsg)
     target_ref.ImportFromEPSG(target_epsg)
     return osr.CoordinateTransformation(source_ref, target_ref)
+
+
+def intersect_arrays(ref_array, array, axes=(1,2), nodata=-9999):
+    '''
+    Input array is either clipped or padded to match the extent of a reference
+    array. NOTE: Assumes that the arrays match up at the top-left corner,
+    a common case for output from rasterio's clip, which nonetheless fails
+    to ensure the rasters have the same number of rows and columns.
+    Arguments:
+        ref_array   The array with the desired shape and size
+        array       The input array that should be made to match ref_array
+        axes        The specific axes that should match, if not all, in the
+                    case that the ref_array is shorter than array on 1+ axes
+        nodata      The NoData value to fill in where the ref_array is longer
+
+    Example: The most common case, perhaps, is two arrays with a different
+    number of bands but which should have the same geographic extent (same
+    number of rows and columns); if the band axis is axis=0, then e.g.,:
+        intersect_arrays(some_multiband_array, some_singleband_mask, axes=(1,2))
+    '''
+    shp = ref_array.shape
+
+    # Figure out how each axis differs
+    diffs = [shp[a] - array.shape[a] for a in range(0, len(shp))]
+    if all([d == 0 for d in diffs]):
+        return array # Do nothing if the arrays match
+
+    # First, for those axes that are longer in the reference array...
+    pad_adjustments = [ # Pad axis by 0 (no change) if diffs[i] <= 0
+        (0, diffs[i]) if diffs[i] > 0 else (0, 0) for i in range(0, len(shp))
+    ]
+    array = np.pad(array, pad_adjustments, mode = 'constant',
+        constant_values = [nodata])
+
+    # Then, for those axes that are shorter in the reference array...
+    sim_shp = [ # User specified which axes should match in `axes`
+        shp[a] if a in axes else array.shape[a] for a in range(0, len(shp))
+    ] # For non-specified axes, use the original shape of `array`
+    return np.resize(array, sim_shp)
 
 
 def mae(reference, predictions, idx=None, n=1):
