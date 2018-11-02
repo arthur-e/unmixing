@@ -278,7 +278,8 @@ class FeatureSpace(LSMAPlot):
 
     def plot_feature_space(self, m=0, n=1, c=None, r=300, hold=False,
         xlim=None, ylim=None, xtpl='MNF %d', ytpl='MNF %d', alpha=0.5,
-        stitle='MNF Feature Space: Axes %d and %d', interact=False):
+        stitle='MNF Feature Space: Axes %d and %d', interact=False,
+        user_defaults = dict()):
         '''
         Create a 2D projection of the feature space and display it.
         '''
@@ -291,8 +292,10 @@ class FeatureSpace(LSMAPlot):
             'linewidths': (0,),
             's': (30,),
             'cmap': 'YlGnBu',
-            'alpha': alpha
+            'alpha': alpha,
+            'c': 'b'
         }
+        defaults.update(user_defaults)
 
         if self.__raveled__:
             if c is not None:
@@ -380,7 +383,7 @@ class FeatureSpace(LSMAPlot):
                     fontsize = 14, arrowprops = dict(arrowstyle = '->',
                     connectionstyle = 'arc3,rad=0'))
 
-    def plot_spectral_points(self, spectra, fmt='r+', labels=None, lpos=None):
+    def plot_spectral_points(self, spectra, fmt='r+', alpha = 1, labels=None, lpos=None):
         '''
         Plots spectral profiles in feature space.
         '''
@@ -391,7 +394,7 @@ class FeatureSpace(LSMAPlot):
             lpos = [(30, -30)] * len(labels)
 
         for i, spec in enumerate(spectra):
-            plt.plot(spec[m], spec[n], fmt, ms = 20, mew = 2)
+            plt.plot(spec[m], spec[n], fmt, alpha = alpha, ms = 20, mew = 2)
 
             if labels is not None:
                 xy = (spec[m], spec[n])
@@ -465,7 +468,7 @@ class FeatureSpace(LSMAPlot):
 def cumulative_freq_plot(rast, band=0, mask=None, bins=100, xlim=None, nodata=-9999):
     '''
     Plots an empirical cumulative frequency curve for the input raster array
-    in a given band.
+    in a given band. NOTE: Thiscurrently only works for single-band arrays.
     '''
     if mask is not None:
         arr = binary_mask(rast, mask)
@@ -479,7 +482,7 @@ def cumulative_freq_plot(rast, band=0, mask=None, bins=100, xlim=None, nodata=-9
     values, base = np.histogram(arr, bins=bins)
     cumulative = np.cumsum(values) # Evaluate the cumulative distribution
     plt.plot(base[:-1], cumulative, c='blue') # Plot the cumulative function
-    plt.set_title('Empirical Cumulative Distribution: Band %d' % band)
+    plt.title('Empirical Cumulative Distribution: Band %d' % band)
 
     if xlim is not None:
         axes = plt.gca()

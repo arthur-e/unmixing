@@ -26,6 +26,7 @@ Contains:
 * `spectra_at_idx()`
 * `spectra_at_xy()`
 * `stack_hdf_as_array()`
+* `subarray()`
 * `xy_to_pixel()`
 '''
 
