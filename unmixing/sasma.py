@@ -1,12 +1,22 @@
 '''
-Library for spatially adaptive spectral mixture analysis (SASMA).
+Library for spatially adaptive spectral mixture analysis (SASMA) as described
+by Deng and Wu (2013) and Wu et al. (2014):
+
+Deng, C., and C. Wu. 2013. A spatially adaptive spectral mixture analysis for mapping subpixel urban impervious surface distribution. Remote Sensing of Environment 133:62–70.
+
+Wu, C., C. Deng, and X. Jia. 2014. Spatially constrained multiple endmember spectral mixture analysis for quantifying subpixel urban impervious surfaces. IEEE Journal of Selected Topics in Applied Earth Observations and Remote Sensing 7 (6):1976–1984.
+
 A typical SASMA analysis is performed within a search window:
 
-1. Set the NoData value in the endmember raster array to zero, such that any
+1. Pick candidate endmembers using CART: fit_endmembers_class_tree()
+2. Set the NoData value in the endmember raster array to zero, such that any
    NoData areas do not contribute to a weighted sum.
-2. Calculate the weight of each endmember in the search window, typically
+3. Calculate the weight of each endmember in the search window, typically
    using inverse distance weighting (IDW).
 '''
+
+import numpy as np
+from sklearn import tree
 
 def eye(size, band_num=None):
     '''
@@ -33,7 +43,7 @@ def eye(size, band_num=None):
     return eye_win
 
 
-def kernel_idw_l1(size, band_num=None, normalize=True, moore_contiguity=False):
+def kernel_idw_l1(size, band_num=None, normalize=False, moore_contiguity=False):
     '''
     Generates an inverse distance weighting (IDW) map simply by assigning
     each cell of a uniform grid an equal weight based on the L1 norm or
@@ -79,3 +89,43 @@ def kernel_idw_l1(size, band_num=None, normalize=True, moore_contiguity=False):
             band_num, axis = 0)
 
     return window
+
+
+def fit_endmembers_class_tree(y_raster, *x_rasters, nodata=-9999, params={}):
+    '''
+    Fits a (single) decision tree to the target endmembers, enabling learning
+    of endmember type for all candidate endmember pixels. Arguments:
+        y_raster    The raster with labeled classes; should be integer dtype
+                    with a unique integer for every unique class label
+        x_rasters   One or more rasters that contain predictive features
+        nodata      The NoData value to ignore
+        params      Additional parameters to pass when creating the
+                    sklearn.tree.DecisionTreeClassifier instance
+    Returns a tuple of:
+        (tree.DecisionTreeClassifier instance, X, Y)
+    '''
+    assert all([r.shape[1:] == y_raster.shape[1:] for r in x_rasters]), 'x_raster arrays must all have the same shape as y_raster'
+    shp = y_raster.shape[1:]
+
+    x_masks = [np.where(x == nodata, 0, 1) for x in x_rasters]
+    # Start with the y_raster so that its Nodata areas are shared
+    x_combined_mask = np.where(y_raster == nodata, 0, 1)
+    for mask in x_masks:
+        x_combined_mask = np.multiply(x_combined_mask, mask)
+
+    # Apply the same NoData mask to all X rasters and the Y raster and combine
+    #   all prediction features (as rasters) into a single raster array
+    x_raster_masked = np.concatenate([ # Mask the input rasters
+        np.where(x_combined_mask == 0, nodata, x) for x in x_rasters
+    ], axis = 0).reshape((len(x_rasters), shp[0] * shp[1]))
+    y_raster_masked = np.where(x_combined_mask == 0, nodata, y_raster)\
+        .reshape((shp[0] * shp[1]))
+
+    # Create conformable label and prediction feature arrays
+    x_array = x_raster_masked[:,x_raster_masked[0,:] != nodata]
+    y_array = y_raster_masked[y_raster_masked != nodata]
+    assert x_array.shape[-1] == y_array.shape[0], 'Labels and prediction features are not aligned (a problem filtering NoData?)'
+
+    clf = tree.DecisionTreeClassifier(**params)
+    tree_fit = clf.fit(x_array.T, y_array)
+    return (tree_fit, x_array.T, y_array)
