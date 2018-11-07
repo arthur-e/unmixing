@@ -35,6 +35,40 @@ def __tasseled_cap__(rast, rt, offset, ncomp=3):
     return np.dot(rt, x).reshape(shp2)[0:ncomp, ...]
 
 
+def biophysical_composition_index(rast, tc_func=None, nodata=-9999):
+    '''
+    Calculates the biophysical composition index (BCI) of Deng and Wu (2012)
+    in Remote Sensing of Environment 127. The NoData value is assumed to be
+    negative (could never be the maximum value in a band). Arguments:
+        rast    A NumPy Array or gdal.Dataset instance
+        tc_func The function to be used to transform the input raster to
+                Tasseled Cap brightness, greenness, and wetness
+        nodata  The NoData value to ignore
+    '''
+    shp = rast.shape
+    if tc_func is None:
+        tc_func = tasseled_cap_tm
+
+    # Perform the tasseled cap rotation
+    x = tc_func(rast, ncomp=3).reshape(3, shp[1]*shp[2])
+    unit = np.ones((1, shp[1] * shp[2]))
+
+    stack = []
+    for i in range(0, 3):
+        # Calculate the minimum values after excluding NoData values
+        tcmin = np.setdiff1d(x[i, ...].ravel(), np.array([nodata])).min()
+        stack.append(np.divide(np.subtract(x[i, ...], unit * tcmin),
+            unit * (x[i, ...].max() - tcmin)))
+
+    # Unpack the High-albedo, Vegetation, and Low-albedo components
+    h, v, l = stack
+
+    return np.divide(
+        np.subtract(np.divide(np.add(h, l), unit * 2), v),
+        np.add(np.divide(np.add(h, l), unit * 2), v))\
+        .reshape((1, shp[1], shp[2]))
+
+
 def ndvi(rast, red_idx=2, nir_idx=3, nodata=-9999):
     '''
     Calculates the normalized difference vegetation index (NDVI). Arguments:
@@ -42,6 +76,7 @@ def ndvi(rast, red_idx=2, nir_idx=3, nodata=-9999):
         red_idx The index of the Red (visible) band
         nir_idx The index of the near-infrared (NIR) band
     '''
+    shp = rast.shape
     # Can accept either a gdal.Dataset or numpy.array instance
     if not isinstance(rast, np.ndarray):
         rastr = rast.ReadAsArray()
@@ -54,7 +89,8 @@ def ndvi(rast, red_idx=2, nir_idx=3, nodata=-9999):
         rastr[nir_idx,...] == nodata, rastr[red_idx,...] == nodata), nodata,
         np.divide(
             rastr[nir_idx,...] - rastr[red_idx,...],
-            rastr[nir_idx,...] + rastr[red_idx,...]))
+            rastr[nir_idx,...] + rastr[red_idx,...]))\
+        .reshape((1, shp[1], shp[2]))
 
 
 def mnf_rotation(rast, nodata=-9999):
@@ -169,38 +205,6 @@ def tasseled_cap_etm_plus(rast, toa=True, offset=False, nodata=-9999, ncomp=3):
         ], dtype=np.float32)
 
     return __tasseled_cap__(rast, r, offset, ncomp)
-
-
-def biophysical_composition_index(rast, tc_func=tasseled_cap_tm, nodata=-9999):
-    '''
-    Calculates the biophysical composition index (BCI) of Deng and Wu (2012)
-    in Remote Sensing of Environment 127. The NoData value is assumed to be
-    negative (could never be the maximum value in a band). Arguments:
-        rast    A NumPy Array or gdal.Dataset instance
-        tc_func The function to be used to transform the input raster to
-                Tasseled Cap brightness, greenness, and wetness
-        nodata  The NoData value to ignore
-    '''
-    shp = rast.shape
-
-    # Perform the tasseled cap rotation
-    x = tc_func(rast, ncomp=3).reshape(3, shp[1]*shp[2])
-    unit = np.ones((1, shp[1] * shp[2]))
-
-    stack = []
-    for i in range(0, 3):
-        # Calculate the minimum values after excluding NoData values
-        tcmin = np.setdiff1d(x[i, ...].ravel(), np.array([nodata])).min()
-        stack.append(np.divide(np.subtract(x[i, ...], unit * tcmin),
-            unit * (x[i, ...].max() - tcmin)))
-
-    # Unpack the High-albedo, Vegetation, and Low-albedo components
-    h, v, l = stack
-
-    return np.divide(
-        np.subtract(np.divide(np.add(h, l), unit * 2), v),
-        np.add(np.divide(np.add(h, l), unit * 2), v))\
-        .reshape((1, shp[1], shp[2]))
 
 
 def rndsi(rast, tc_func=tasseled_cap_tm, bands=(6,2), nodata=-9999):

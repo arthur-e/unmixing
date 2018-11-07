@@ -42,8 +42,16 @@ import pysptools.abundance_maps as sp_abundance
 import pysptools.classification as sp_classify
 import pysptools.material_count as sp_matcount
 
-class AbstractAbundanceMapper(object):
-    pass
+class AbstractAbundanceMap(object):
+    def __init__(self, raster_array, gt, wkt):
+        self.raster_array = raster_array
+        self.gt = gt
+        self.wkt = wkt
+
+    @property
+    def hsi(self):
+        'Return HSI cube: a (p x m x n) raster is transformed to (n x m x p)'
+        return self.raster_array.T
 
 
 class AbstractExtractor(object):
@@ -110,28 +118,31 @@ class AbstractExtractor(object):
         ds.Destroy()
 
 
-class ATGP(sp_extract.ATGP, AbstractExtractor):
-    pass
+class FCLSAbundanceMap(AbstractAbundanceMap):
+    '''
+    A class representing an abundance map, containing both the raw spectral
+    (mixed) data and the logic to unmix the data into an abundance map.
+    '''
+    def __init__(self, *args, **kwargs):
+        super(FCLSAbundanceMap, self).__init__(*args, **kwargs)
+        self.mapper = sp_abundance.FCLS()
 
+    def map_abundances(self, endmembers):
+        '''
+        Arguments:
+            endmembers  A (q x p) array of q endmembers and p bands
+        '''
+        q = endmembers.shape[0]
 
-class FIPPI(sp_extract.FIPPI, AbstractExtractor):
-    pass
+        # FCLS with the sum-to-one constraint has an extra degree of freedom so it
+        #   is able to form a simplex of q corners in (q-1) dimensions:
+        #   q <= n (Settle and Drake, 1993)
+        n = q - 1 # Find q corners of simplex in (q-1) dimensions
+        endmembers = endmembers[:,0:n]
 
-
-class PPI(sp_extract.PPI, AbstractExtractor):
-    pass
-
-
-class NFINDR(sp_extract.NFINDR, AbstractExtractor):
-    pass
-
-
-class FCLSAbundance(sp_abundance.FCLS, AbstractAbundanceMapper):
-    pass
-
-
-class NNLSAbundance(sp_abundance.NNLS, AbstractAbundanceMapper):
-    pass
+        # Do the FCLS unmixing
+        abundances = self.mapper.map(self.hsi[:,:,0:n], endmembers, normalize=False)
+        return abundances
 
 
 def combine_endmembers_and_normalize(abundances, es=(1, 2), at_end=True, nodata=-9999):
