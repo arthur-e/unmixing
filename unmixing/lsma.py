@@ -136,39 +136,83 @@ class FCLSAbundanceMapper(AbstractAbundanceMapper):
         super(FCLSAbundanceMapper, self).__init__(*args, **kwargs)
         self.mapper = sp_abundance.FCLS()
 
-    def __unmix__(self, cases, endmembers):
-        m, n = cases.shape
-        return self.mapper.map(cases.reshape((1, m, n)), endmembers,
+    def __lsma__(self, cases, endmembers):
+        # For regular LSMA with single endmember spectra
+        # c is number of pixels, k is number of bands
+        c, k = cases.shape if len(cases.shape) > 1 else (1, cases.shape[0])
+        return self.mapper.map(cases.reshape((1, c, k)), endmembers,
             normalize = False)
 
-    def map_abundance(self, endmembers):
+    def __mesma__(self, array_pairs):
+        # For multiple endmember spectra, in chunks
+        cases, endmembers = array_pairs
+        # c is number of pixels, k is number of bands
+        c, k = cases.shape if len(cases.shape) > 1 else (1, cases.shape[0])
+        return [
+            self.mapper.map(cases[i,...].reshape((1, 1, k)), endmembers[i,...],
+                normalize = False) for i in range(0, c)
+        ]
+
+    def __mesma2__(self, array_pairs):
+        # For multiple endmember spectra, pixel-wise
+        # NOTE: This pixel-wise implementation might be slower than __mesma__
+        #   for large arrays
+        cases, endmembers = array_pairs
+        # c is number of pixels, k is number of bands
+        c, k = cases.shape if len(cases.shape) > 1 else (1, cases.shape[0])
+        return self.mapper.map(cases.reshape((1, c, k)), endmembers,
+            normalize = False)
+
+    def map_abundance(self, endmembers, pixelwise=False):
         '''
         Arguments:
-            endmembers  A (q x p) array of q endmembers and p bands
+            endmembers  A numpy.ndarray of endmembers; either (q x p) array
+                        of q endmembers and p bands (for regular LSMA) or a
+                        (c x q x p) array, where c = m*n, for multiple
+                        endmember spectra for each pixel.
 
         Returns: An (m x n x q) numpy.ndarray (in HSI form) that contains
         the abundances for each of q endmember types.
         '''
-        q = endmembers.shape[0]
+        q = endmembers.shape[-2]
         # FCLS with the sum-to-one constraint has an extra degree of freedom so it
         #   is able to form a simplex of q corners in (q-1) dimensions:
         #   q <= n (Settle and Drake, 1993)
-        n = q - 1 # Find q corners of simplex in (q-1) dimensions
-        endmembers = endmembers[:,0:n]
-
-        # Curry an unmixing function with the present endmember array
-        unmix = partial(self.__unmix__, endmembers = endmembers)
-
+        k = q - 1 # Find q corners of simplex in (q-1) dimensions
+        endmembers = endmembers[...,0:k]
         shp = self.hsi.shape
-        base_array = self.hsi[:,:,0:n].reshape((shp[0] * shp[1], n))
+        base_array = self.hsi[:,:,0:k].reshape((shp[0] * shp[1], k))
+
         # Get indices for each process' work range
         work = self.__partition__(base_array)
+
         with ProcessPoolExecutor(max_workers = self.num_processes) as executor:
-            result = executor.map(unmix, [
-                base_array[i:j,...] for i, j in work
-            ])
+            # We're working with multiple endmembers
+            if endmembers.ndim == 3 and pixelwise:
+                result = executor.map(self.__mesma2__, [ # Work done pixel-wise
+                    (base_array[i,...], endmembers[i,...]) for i in range(0, base_array.shape[0])
+                ])
+
+            elif endmembers.ndim == 3:
+                result = executor.map(self.__mesma__, [
+                    (base_array[i:j,...], endmembers[i:j,...]) for i, j in work
+                ])
+
+            # We're working with a single endmember per class
+            else:
+                # Curry an unmixing function with the present endmember array
+                unmix = partial(self.__lsma__, endmembers = endmembers)
+                result = executor.map(unmix, [
+                    base_array[i:j,...] for i, j in work
+                ])
 
         combined_result = list(result) # Executes the multiprocess suite
+        if endmembers.ndim == 3 and not pixelwise:
+            # When chunking with multiple endmembers, we get list of lists
+            ext_array = [y for x in combined_result for y in x] # Flatten once
+            return np.concatenate(ext_array, axis = 1)\
+                .reshape((shp[0], shp[1], 3))
+
         return np.concatenate(combined_result, axis = 1)\
             .reshape((shp[0], shp[1], 3))
 
