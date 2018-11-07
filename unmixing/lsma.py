@@ -2,14 +2,6 @@
 Adjustments to the pysptools library to support linear spectral mixture
 analysis (LSMA). Includes functions:
 
-* `AbstractAbundanceMapper`
-* `AbstractExtractor`
-* `ATGP`
-* `FIPPI`
-* `PPI`
-* `NFINDR`
-* `FCLSAbundance`
-* `NNLSAbundance`
 * `combine_endmembers_and_normalize()`
 * `convex_hull_graham()`
 * `endmembers_by_maximum_angle()`
@@ -32,7 +24,8 @@ import json
 import os
 import re
 import numpy as np
-from functools import reduce
+from concurrent.futures import ProcessPoolExecutor
+from functools import reduce, partial
 from unmixing.utils import array_to_raster, as_array, as_raster, dump_raster, xy_to_pixel, pixel_to_xy, spectra_at_xy, rmse
 from lxml import etree
 from osgeo import gdal, ogr, osr
@@ -42,16 +35,28 @@ import pysptools.abundance_maps as sp_abundance
 import pysptools.classification as sp_classify
 import pysptools.material_count as sp_matcount
 
-class AbstractAbundanceMap(object):
-    def __init__(self, raster_array, gt, wkt):
+class AbstractAbundanceMapper(object):
+    def __init__(self, raster_array, gt, wkt, processes=1):
         self.raster_array = raster_array
         self.gt = gt
         self.wkt = wkt
+        self.num_processes = processes
 
     @property
     def hsi(self):
         'Return HSI cube: a (p x m x n) raster is transformed to (n x m x p)'
         return self.raster_array.T
+
+    def __partition__(self, base_array):
+        N = base_array.shape[0]
+        P = (self.num_processes + 1) # Number of breaks (number of partitions + 1)
+        # Break up the indices into (roughly) equal parts
+        partitions = list(zip(np.linspace(0, N, P, dtype=int)[:-1],
+            np.linspace(0, N, P, dtype=int)[1:]))
+        # Final range of indices should end +1 past last index for completeness
+        work = partitions[:-1]
+        work.append((partitions[-1][0], partitions[-1][1] + 1))
+        return work
 
 
 class AbstractExtractor(object):
@@ -118,31 +123,54 @@ class AbstractExtractor(object):
         ds.Destroy()
 
 
-class FCLSAbundanceMap(AbstractAbundanceMap):
+class FCLSAbundanceMapper(AbstractAbundanceMapper):
     '''
-    A class representing an abundance map, containing both the raw spectral
-    (mixed) data and the logic to unmix the data into an abundance map.
+    A class for generating an abundance map, containing both the raw spectral
+    (mixed) data and the logic to unmix the data into an abundance map with
+    the fully constrained least-squares (FCLS) approach. The "full"
+    constraints are the sum-to-one and non-negativity constraints. Given
+    q endmembers and p spectral bands, the mapper is forced to find
+    abundances within a simplex in a (q-1)-dimensional subspace.
     '''
     def __init__(self, *args, **kwargs):
-        super(FCLSAbundanceMap, self).__init__(*args, **kwargs)
+        super(FCLSAbundanceMapper, self).__init__(*args, **kwargs)
         self.mapper = sp_abundance.FCLS()
 
-    def map_abundances(self, endmembers):
+    def __unmix__(self, cases, endmembers):
+        m, n = cases.shape
+        return self.mapper.map(cases.reshape((1, m, n)), endmembers,
+            normalize = False)
+
+    def map_abundance(self, endmembers):
         '''
         Arguments:
             endmembers  A (q x p) array of q endmembers and p bands
+
+        Returns: An (m x n x q) numpy.ndarray (in HSI form) that contains
+        the abundances for each of q endmember types.
         '''
         q = endmembers.shape[0]
-
         # FCLS with the sum-to-one constraint has an extra degree of freedom so it
         #   is able to form a simplex of q corners in (q-1) dimensions:
         #   q <= n (Settle and Drake, 1993)
         n = q - 1 # Find q corners of simplex in (q-1) dimensions
         endmembers = endmembers[:,0:n]
 
-        # Do the FCLS unmixing
-        abundances = self.mapper.map(self.hsi[:,:,0:n], endmembers, normalize=False)
-        return abundances
+        # Curry an unmixing function with the present endmember array
+        unmix = partial(self.__unmix__, endmembers = endmembers)
+
+        shp = self.hsi.shape
+        base_array = self.hsi[:,:,0:n].reshape((shp[0] * shp[1], n))
+        # Get indices for each process' work range
+        work = self.__partition__(base_array)
+        with ProcessPoolExecutor(max_workers = self.num_processes) as executor:
+            result = executor.map(unmix, [
+                base_array[i:j,...] for i, j in work
+            ])
+
+        combined_result = list(result) # Executes the multiprocess suite
+        return np.concatenate(combined_result, axis = 1)\
+            .reshape((shp[0], shp[1], 3))
 
 
 def combine_endmembers_and_normalize(abundances, es=(1, 2), at_end=True, nodata=-9999):

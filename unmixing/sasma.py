@@ -16,7 +16,9 @@ A typical SASMA analysis is performed within a search window:
 '''
 
 import numpy as np
+from scipy.ndimage import generic_filter
 from sklearn import tree
+from unmixing.utils import binary_mask
 
 class CARTLearner(object):
     def __init__(self, y_raster, *x_rasters, nodata=-9999):
@@ -24,6 +26,7 @@ class CARTLearner(object):
         self.nodata = nodata
         self.y_raster = y_raster
         self.x_rasters = x_rasters
+        self.n_labels = shp[0]
         self.n_features = len(x_rasters)
         self.x_features_array = np.concatenate(x_rasters, axis = 0)\
             .reshape((len(x_rasters), shp[0] * shp[1]))
@@ -69,7 +72,7 @@ class CARTLearner(object):
         self.last_fit = self.classifier.fit(x_array.T, y_array)
         return (self.last_fit, x_array.T, y_array)
 
-    def predict(self, fit=None, features=None):
+    def predict(self, fit=None, features=None, probabilities=False):
         '''
         Predict the class labels (e.g., endmember types) based on an existing
         tree fit and new predictive features. Arguments:
@@ -80,8 +83,11 @@ class CARTLearner(object):
         '''
         if fit is None: fit = self.last_fit
         if features is None: features = self.x_features_array
-        prediction = fit.predict(features.T)
-        return prediction.reshape(self.y_raster.shape)
+        if probabilities:
+            shp = self.y_raster.shape
+            return fit.predict(features.T).T.reshape((self.n_labels, shp[1], shp[2]))
+
+        return fit.predict(features.T).reshape(self.y_raster.shape)
 
 
 def eye(size, band_num=None):
@@ -155,3 +161,79 @@ def kernel_idw_l1(size, band_num=None, normalize=False, moore_contiguity=False):
             band_num, axis = 0)
 
     return window
+
+
+# TODO Test this with a multi-processing framework
+def interpolate_endmember_map(spectra, em_locations, window, q=3, n=2,
+    labels=None, cval=0, nodata=-9999):
+    '''
+    Creates synthetic image endmember maps (arrays); these endmembers are
+    spatially interpolated from known endmember candidates. The end goal
+    is a map (array) with an endmember spectra at every pixel, for one or
+    more endmembers. Arguments:
+        spectra         The multi-band raster from which candidate endmember
+                        spectra will be synthesized; a (p x m x n) array.
+        em_locations    A single band, classified raster array denoting the
+                        locations of endmember candidates; a (1 x m x n) array.
+        window          A 2D NumPy array that serves as the moving window,
+                        kernel, or filter used in SASMA.
+        q               The number of endmember classes to synthesize.
+        n               The dimensionality of the spectral subspace
+        labels          The values in em_locations that uniquely identify
+                        each endmember class; default is [1,2,...,q]
+        cval            The constant value: Replaces NoData and used in areas
+                        outside the window; see NOTE below.
+        nodata          The NoData value
+
+    Example of this routine on a tiny numeric array:
+        ex = np.where(np.ndarray((1,5,5), dtype=np.int16) % 2 == 0, 0, 1)
+        em_map = np.multiply(ex.repeat(ex, 3, 0),
+            np.round(np.random.rand(3,5,5), 2))
+        NODATA = 0 # Example of a NoData value to filter
+        window = np.ravel(kernel_idw_l1(3, band_num=1))
+        avg_map = generic_filter(em_map[0,...],
+            lambda x: np.sum(np.multiply(x, window)) / np.sum(
+                np.multiply(np.where(x == NODATA, 0, 1), window)),
+            mode = 'constant', cval = 0, footprint = np.ones((3,3)))
+        # If you want to place the original (raw) values into the averaged map
+        np.where(em_map[0,...] > 0, em_map[0,...], avg_map)
+
+    NOTE: For performance, NoData areas are filled with zero (0); this way,
+    they do not contribute to the spatial sum (i.e., sum([0,...,0]) == 0) and
+    they can also be removed from the sum of weights that is the divisor. In
+    most cases, this shouldn't be an issue (minimum noise fraction components
+    almost never equal zero); however, if areas that equal zero should be
+    considered in the weighted sum, simply change cval.
+    '''
+    shp = spectra.shape
+    if labels is None:
+        # In absence of user-defined endmember class labels, use integers
+        labels = range(1, (q + 1))
+
+    assert len(labels) == spectra.shape[0], 'The spectra array must have p bands for p endmember class labels'
+    masked_spectra = []
+    for i in labels:
+        # Extract the individual endmember "band" images
+        masked_spectra.append(binary_mask(spectra[0:n,0:shp[1],0:shp[2]],
+            np.where(em_locations == i, 1, 0), nodata = nodata, invert = True))
+
+    w = np.max(window.shape) # Assume square window; longest of any equal side
+    window = np.ravel(window) # For performance, used raveled arrays
+    synth_em_maps = [] # Holder for the final multi-band, synthetic EM maps
+    for em_map in masked_spectra:
+        synth_em_bands = []
+        for b in range(0, q):
+            em_avg_map = generic_filter(
+                # Fill NoData with zero --> no contribution to spatial sum
+                np.where(em_map[b,...] == nodata, cval, em_map[b,...]),
+                    # Multiply em_map in window by weights, then divide by
+                    #   the sum of weights in those non-zero areas
+                    lambda x: np.sum(np.multiply(x, window)) / np.sum(
+                        np.multiply(np.where(x == cval, 0, 1), window)),
+                    mode = 'constant', cval = cval, footprint = np.ones((w,w)))
+
+            synth_em_bands.append(em_avg_map.reshape((1, shp[1], shp[2])))
+
+        synth_em_maps.append(np.concatenate(synth_em_bands, axis = 0))
+
+    return synth_em_maps
