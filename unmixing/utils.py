@@ -498,6 +498,47 @@ def dump_raster(rast, rast_path, xoff=0, yoff=0, driver='GTiff', nodata=None):
     sink.FlushCache()
 
 
+def fill_nodata_bandwise(arr, fill_values=None, nodata=-9999):
+    '''
+    Fill NoData values in a raster array with the column means (default) or
+    a user-specified vector of values. Arguments:
+        arr         The raster array with NoData values to fill
+        fill_values A user-specified vector of values, one for each band
+        nodata      The NoData value to fill
+    '''
+    arr2 = arr.copy()
+    arr2[arr2 == -9999] = np.nan
+    return fill_nan_bandwise(arr2, fill_values = fill_values)
+
+
+def fill_nan_bandwise(arr, fill_values=None):
+    '''
+    Fill np.nan values in a raster array with the column means (default) or
+    a user-specified vector of values. Arguments:
+        arr         The raster array with np.nan values to fill
+        fill_values A user-specified vector of values, one for each band
+    '''
+    # Assumes band axis is band 0
+    shp = arr.shape
+    arr2 = arr.copy()
+    if arr.ndim > 2:
+        arr2 = arr.reshape((shp[0], shp[1] * shp[2]))
+
+    if fill_values is not None:
+        assert len(fill_values) == shp[0], 'If specifying a vector of fill values, the length must equal the number of bands'
+        fill_values = np.array(fill_values).reshape((shp[0],))
+
+    else:
+        # Get band means
+        fill_values = np.nanmean(arr2, axis = 1)
+
+    # Get indices of nans
+    idx = np.where(np.isnan(arr2))
+    # Place column means in the indices, arrays aligned with take()
+    arr2[idx] = np.take(fill_values, idx[0])
+    return arr2.reshape(shp)
+
+
 def get_coord_transform(source_epsg, target_epsg):
     '''
     Creates an OGR-framework coordinate transformation for use in projecting
@@ -515,45 +556,6 @@ def get_coord_transform(source_epsg, target_epsg):
     source_ref.ImportFromEPSG(source_epsg)
     target_ref.ImportFromEPSG(target_epsg)
     return osr.CoordinateTransformation(source_ref, target_ref)
-
-
-def intersect_arrays(ref_array, array, axes=(1,2), nodata=-9999):
-    '''
-    Input array is either clipped or padded to match the extent of a reference
-    array. NOTE: Assumes that the arrays match up at the top-left corner,
-    a common case for output from rasterio's clip, which nonetheless fails
-    to ensure the rasters have the same number of rows and columns.
-    Arguments:
-        ref_array   The array with the desired shape and size
-        array       The input array that should be made to match ref_array
-        axes        The specific axes that should match, if not all, in the
-                    case that the ref_array is shorter than array on 1+ axes
-        nodata      The NoData value to fill in where the ref_array is longer
-
-    Example: The most common case, perhaps, is two arrays with a different
-    number of bands but which should have the same geographic extent (same
-    number of rows and columns); if the band axis is axis=0, then e.g.,:
-        intersect_arrays(some_multiband_array, some_singleband_mask, axes=(1,2))
-    '''
-    shp = ref_array.shape
-
-    # Figure out how each axis differs
-    diffs = [shp[a] - array.shape[a] for a in range(0, len(shp))]
-    if all([d == 0 for d in diffs]):
-        return array # Do nothing if the arrays match
-
-    # First, for those axes that are longer in the reference array...
-    pad_adjustments = [ # Pad axis by 0 (no change) if diffs[i] <= 0
-        (0, diffs[i]) if diffs[i] > 0 else (0, 0) for i in range(0, len(shp))
-    ]
-    array = np.pad(array, pad_adjustments, mode = 'constant',
-        constant_values = [nodata])
-
-    # Then, for those axes that are shorter in the reference array...
-    sim_shp = [ # User specified which axes should match in `axes`
-        shp[a] if a in axes else array.shape[a] for a in range(0, len(shp))
-    ] # For non-specified axes, use the original shape of `array`
-    return np.resize(array, sim_shp)
 
 
 def mae(reference, predictions, idx=None, n=1):
@@ -821,6 +823,7 @@ def spectra_at_xy(rast, xy, gt=None, wkt=None, dd=False):
         gt      A GDAL GeoTransform tuple; ignored for gdal.Dataset
         wkt     Well-Known Text projection information; ignored for gdal.Dataset
         dd      Interpret the longitude-latitude pairs as decimal degrees
+    Returns a (q x p) array of q endmembers with p bands.
     '''
     # Can accept either a gdal.Dataset or numpy.array instance
     if not isinstance(rast, np.ndarray):

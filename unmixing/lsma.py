@@ -48,6 +48,8 @@ class AbstractAbundanceMapper(object):
         return self.raster_array.T
 
     def __partition__(self, base_array):
+        # Creates index ranges for partitioning an array to work on over
+        #   multiple processes
         N = base_array.shape[0]
         P = (self.num_processes + 1) # Number of breaks (number of partitions + 1)
         # Break up the indices into (roughly) equal parts

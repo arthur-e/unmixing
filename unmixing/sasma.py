@@ -90,6 +90,24 @@ class CARTLearner(object):
         return fit.predict(features.T).reshape(self.y_raster.shape)
 
 
+def concat_endmember_arrays(*em_rast_arrays):
+    '''
+    Concatenates multiple (p x m x n) raster arrays for each of q endmembers
+    into (c x q x p) endmember array, for multiple-endmember approaches
+    inclusing SASMA, where c = m*n and p is the number of spectral bands.
+    Arguments:
+        em_rast_arrays  Any number of input (p x m x n) raster arrays
+    '''
+    shp = em_rast_arrays[0].shape
+    # Transform to (c x p) for each of q endmembers
+    vectors = [e.reshape((shp[0], shp[1] * shp[2])).T for e in em_rast_arrays]
+    # Next, transform to (c x p x 1), then swap axes 1 and 2, resulting in
+    #    (c x 1 x p) arrays, that are concatenated on axis 1
+    return np.concatenate([
+        e.reshape((shp[1] * shp[2], shp[0], 1)).swapaxes(1, 2) for e in vectors
+    ], axis = 1)
+
+
 def eye(size, band_num=None):
     '''
     Generates an eye-shaped (or "donut-shaped") binary kernel for filtering/
@@ -163,7 +181,6 @@ def kernel_idw_l1(size, band_num=None, normalize=False, moore_contiguity=False):
     return window
 
 
-# TODO Test this with a multi-processing framework
 def interpolate_endmember_map(spectra, em_locations, window, q=3, n=2,
     labels=None, cval=0, nodata=-9999):
     '''
@@ -210,7 +227,7 @@ def interpolate_endmember_map(spectra, em_locations, window, q=3, n=2,
         # In absence of user-defined endmember class labels, use integers
         labels = range(1, (q + 1))
 
-    assert len(labels) == spectra.shape[0], 'The spectra array must have p bands for p endmember class labels'
+    assert len(labels) <= spectra.shape[0], 'The spectra array must have p bands for p endmember class labels'
     masked_spectra = []
     for i in labels:
         # Extract the individual endmember "band" images
