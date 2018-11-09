@@ -1,7 +1,10 @@
 '''
 Adjustments to the pysptools library to support linear spectral mixture
-analysis (LSMA). Includes functions:
+analysis (LSMA). Includes classes and functions:
 
+* `PPI`
+* `NFINDR`
+* `FCLSAbundanceMapper`
 * `combine_endmembers_and_normalize()`
 * `convex_hull_graham()`
 * `endmembers_by_maximum_angle()`
@@ -13,6 +16,7 @@ analysis (LSMA). Includes functions:
 * `normalize_reflectance_within_image()`
 * `predict_spectra_from_abundance()`
 * `point_to_pixel_geometry()`
+* `ravel()`
 * `ravel_and_filter()`
 * `report_raster_dynamic_range()`
 * `subtract_endmember_and_normalize()`
@@ -123,6 +127,14 @@ class AbstractExtractor(object):
 
         # Destroy the data source to free resources
         ds.Destroy()
+
+
+class PPI(sp_extract.PPI, AbstractExtractor):
+    pass
+
+
+class NFINDR(sp_extract.NFINDR, AbstractExtractor):
+    pass
 
 
 class FCLSAbundanceMapper(AbstractAbundanceMapper):

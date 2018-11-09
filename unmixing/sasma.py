@@ -8,11 +8,11 @@ Wu, C., C. Deng, and X. Jia. 2014. Spatially constrained multiple endmember spec
 
 A typical SASMA analysis is performed within a search window:
 
-1. Pick candidate endmembers using CART: fit_endmembers_class_tree()
+1. Pick candidate endmembers using CART: CARTLearner.fit_tree()
 2. Set the NoData value in the endmember raster array to zero, such that any
    NoData areas do not contribute to a weighted sum.
 3. Calculate the weight of each endmember in the search window, typically
-   using inverse distance weighting (IDW).
+   using inverse distance weighting (IDW): interpolate_endmember_map()
 '''
 
 import numpy as np
