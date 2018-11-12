@@ -239,7 +239,7 @@ def interpolate_endmember_map(spectra, em_locations, window, q=3, n=2,
     synth_em_maps = [] # Holder for the final multi-band, synthetic EM maps
     for em_map in masked_spectra:
         synth_em_bands = []
-        for b in range(0, q):
+        for b in range(0, n):
             em_avg_map = generic_filter(
                 # Fill NoData with zero --> no contribution to spatial sum
                 np.where(em_map[b,...] == nodata, cval, em_map[b,...]),
