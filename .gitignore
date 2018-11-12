@@ -9,3 +9,6 @@ syntax: glob
 # Ignore package-related cruft (while in development)
 dist/*
 *.egg-info
+
+# Ignore any XML files associated with raster arrays
+*.aux.xml

@@ -30,6 +30,7 @@ import re
 import numpy as np
 from concurrent.futures import ProcessPoolExecutor
 from functools import reduce, partial
+from unmixing.transform import mnf_rotation
 from unmixing.utils import array_to_raster, as_array, as_raster, dump_raster, xy_to_pixel, pixel_to_xy, spectra_at_xy, rmse
 from lxml import etree
 from osgeo import gdal, ogr, osr
@@ -40,8 +41,10 @@ import pysptools.classification as sp_classify
 import pysptools.material_count as sp_matcount
 
 class AbstractAbundanceMapper(object):
-    def __init__(self, raster_array, gt, wkt, processes=1):
-        self.raster_array = raster_array
+    def __init__(self, mixed_raster, gt, wkt, processes=1):
+        assert np.all(np.greater(mixed_raster.shape, 0)), 'Raster array cannot have any zero-length axis'
+        self.shp = mixed_raster.shape
+        self.mixed_raster = mixed_raster
         self.gt = gt
         self.wkt = wkt
         self.num_processes = processes
@@ -49,7 +52,12 @@ class AbstractAbundanceMapper(object):
     @property
     def hsi(self):
         'Return HSI cube: a (p x m x n) raster is transformed to (n x m x p)'
-        return self.raster_array.T
+        return self.mixed_raster.T
+
+    @property
+    def mnf(self):
+        'Return the MNF rotation in HSI form (n x m x p)'
+        return mnf_rotation(self.mixed_raster)
 
     def __partition__(self, base_array):
         # Creates index ranges for partitioning an array to work on over
@@ -194,8 +202,8 @@ class FCLSAbundanceMapper(AbstractAbundanceMapper):
         #   q <= n (Settle and Drake, 1993)
         k = q - 1 # Find q corners of simplex in (q-1) dimensions
         endmembers = endmembers[...,0:k]
-        shp = self.hsi.shape
-        base_array = self.hsi[:,:,0:k].reshape((shp[0] * shp[1], k))
+        shp = self.mnf.shape
+        base_array = self.mnf[:,:,0:k].reshape((shp[0] * shp[1], k))
 
         # Get indices for each process' work range
         work = self.__partition__(base_array)

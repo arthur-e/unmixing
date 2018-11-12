@@ -3,12 +3,14 @@ This module contains the unit tests. Run "python tests.py" at the command line
 to run the tests.
 '''
 
+import hashlib
 import os
 import random
 import unittest
 import unmixing
 from unmixing.utils import *
-from unmixing.lsma import PPI, convex_hull_graham, endmembers_by_maximum_angle, endmembers_by_maximum_area, endmembers_by_query, endmembers_by_maximum_volume, hall_rectification, point_to_pixel_geometry
+from unmixing.lsma import FCLSAbundanceMapper, PPI, convex_hull_graham, endmembers_by_maximum_angle, endmembers_by_maximum_area, endmembers_by_query, endmembers_by_maximum_volume, hall_rectification, point_to_pixel_geometry
+from unmixing.sasma import concat_endmember_arrays
 from unmixing.transform import biophysical_composition_index, tasseled_cap_tm, mnf_rotation
 from unmixing.visualize import FeatureSpace
 from osgeo import gdal
@@ -17,6 +19,7 @@ from pysptools.noise import MNF
 # For backwards compatibility in GDAL
 gdal.SetConfigOption('GDAL_ARRAY_OPEN_BY_FILENAME', 'TRUE')
 TEST_DIR = os.path.join(os.path.dirname(unmixing.__file__), 'test')
+DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(unmixing.__file__)), 'docs/data')
 
 class Tester(unittest.TestCase):
 
@@ -33,8 +36,68 @@ class Tester(unittest.TestCase):
                 pass
 
 
-class LSMA(Tester):
+class FCLS(Tester):
+    test_dir = TEST_DIR
+    data_dir = DATA_DIR
 
+    def test_fcls_unmixing_with_single_endmember_spectra(self):
+        '''
+        Should calculate abundance from a mixed image for single endmember
+        spectra.
+        '''
+        em_locs = [(326701, 4696895),(324978, 4699651), (328823, 4696835)]
+        arr, gt, wkt = as_array(os.path.join(self.data_dir,
+            'LT05_020030_merge_19950712_stack_clip.tiff'))
+        endmembers = spectra_at_xy(mnf_rotation(arr).T, em_locs, gt, wkt)
+        fcls_mapper = FCLSAbundanceMapper(arr[:,100:110,100:110],
+            gt, wkt, processes = 1)
+        result = fcls_mapper.map_abundance(endmembers)
+        hasher = hashlib.sha256()
+        hasher.update(result)
+        self.assertEqual(hasher.hexdigest(), 'b042f3742910abd3505bf81a083eab6fc4684063ef30327f18d41327f2882b9f')
+
+    def test_fcls_unmixing_with_single_endmember_spectra_multicore(self):
+        '''
+        Should calculate abundance from a mixed image for single endmember
+        spectra; result should be the same for 1 or 2 processes.
+        '''
+        em_locs = [(326701, 4696895),(324978, 4699651), (328823, 4696835)]
+        arr, gt, wkt = as_array(os.path.join(self.data_dir,
+            'LT05_020030_merge_19950712_stack_clip.tiff'))
+        endmembers = spectra_at_xy(mnf_rotation(arr).T, em_locs, gt, wkt)
+        fcls_mapper1 = FCLSAbundanceMapper(arr[:,100:110,100:110],
+            gt, wkt, processes = 1)
+        fcls_mapper2 = FCLSAbundanceMapper(arr[:,100:110,100:110],
+            gt, wkt, processes = 2)
+        result1 = fcls_mapper1.map_abundance(endmembers)
+        result2 = fcls_mapper2.map_abundance(endmembers)
+        self.assertTrue(np.all(np.equal(result1, result2)))
+        hasher = hashlib.sha256()
+        hasher.update(result2)
+        self.assertEqual(hasher.hexdigest(), 'b042f3742910abd3505bf81a083eab6fc4684063ef30327f18d41327f2882b9f')
+
+
+class SASMA(Tester):
+    test_dir = TEST_DIR
+    data_dir = DATA_DIR
+
+    def test_concatenation_of_endmember_arrays(self):
+        '''
+        Spectra arrays for multiple endmember types should be concatenated
+        correctly; this step anticipates LSMA with multiple endmember spectra.
+        '''
+        arr, gt, wkt = as_array(os.path.join(self.data_dir,
+            'LT05_020030_merge_19950712_stack_clip.tiff'))
+        vbd, gt, wkt = as_array(os.path.join(self.data_dir,
+            'LT05_020030_merge_19950712_VBD_endmember_PIFs.tiff'))
+        emv = np.where(vbd == 1, arr, 0)
+        emb = np.where(vbd == 2, arr, 0)
+        emd = np.where(vbd == 3, arr, 0)
+        endmembers = concat_endmember_arrays(emv, emb, emd)
+        self.assertTrue(np.all(np.equal(endmembers.shape, (56639, 3, 6))))
+
+
+class LSMA(Tester):
     test_dir = TEST_DIR
     cases = {
         'Vegetation': [

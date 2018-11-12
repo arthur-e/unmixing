@@ -95,7 +95,8 @@ def ndvi(rast, red_idx=2, nir_idx=3, nodata=-9999):
 
 def mnf_rotation(rast, nodata=-9999):
     '''
-    Applies the MNF rotation to an HSI data cube. Arguments:
+    Applies the MNF rotation to a raster array; returns in HSI form
+    (m x n x p). Arguments:
         rast    A NumPy raster array
         nodata  The NoData value
     '''
