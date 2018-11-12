@@ -238,6 +238,69 @@ class FCLSAbundanceMapper(AbstractAbundanceMapper):
         return np.concatenate(combined_result, axis = 1)\
             .reshape((shp[0], shp[1], 3))
 
+    def validate_by_forward_model(self, abundances, ref_spectra=None,
+        ref_em_locations=None, dd=False, nodata=-9999, r=10000, as_pct=True):
+        '''
+        Validates LSMA result in the forward model of reflectance, i.e.,
+        compares the observed reflectance in the original (mixed) image to the
+        abundance predicted by a forward model of reflectance using the
+        provided endmember spectra. NOTE: Does not apply in the case of
+        multiple endmember spectra; requires only one spectral profile per
+        endmember type.
+        Arguments:
+            abundances  A raster array of abundances; a (q x m x n) array for
+                        q abundance types (q endmembers).
+            ref_spectra With single endmember spectra, user can provide the
+                        reference spectra, e.g., the observed reflectance for
+                        each endmember (not MNF spectra).
+            ref_em_locations With single endmember spectra, user can provide
+                        the coordinates of each endmember, so that reference
+                        spectra can be extracted for validation.
+            dd          True if ref_em_locations provided and the coordinates
+                        are in decimal degrees.
+            nodata      The NoData value to use.
+            r           The number of random samples to take in calculating
+                        RMSE.
+            as_pct      Report normalized RMSE (as a percentage).
+        '''
+        rastr = self.mixed_raster.copy()
+        assert (ref_spectra is not None) or (ref_em_locations is not None), 'When single endmember spectra are used, either ref_spectra or ref_em_locations must be provided'
+
+        if ref_spectra is not None:
+            assert ref_spectra.shape[0] == abundances.shape[0], 'One reference spectra must be provided for each endmember type in abundance map'
+
+        else:
+            # Get the spectra for each endmember from the reference dataset
+            ref_spectra = spectra_at_xy(self.mixed_raster, ref_em_locations,
+                self.gt, self.wkt, dd = dd)
+
+        # Convert the NoData values to zero reflectance; reshape the array
+        rastr[rastr == nodata] = 0
+        ref_spectra[ref_spectra == nodata] = 0
+        shp = rastr.shape
+        arr = rastr.reshape((shp[0], shp[1]*shp[2]))
+
+        # Generate 1000 random sampling indices
+        idx = np.random.choice(np.arange(0, arr.shape[1]), r)
+
+        # Predict the reflectances!
+        stats = []
+        # Get the predicted reflectances
+        preds = predict_spectra_from_abundance(ravel(abundances), ref_spectra)
+        assert preds.shape == arr.shape, 'Prediction and observation matrices are not the same size'
+
+        # Take the mean RMSE (sum of RMSE divided by number of pixels), after
+        #   the residuals are normalized by the number of endmembers
+        rmse_value = rmse(arr, preds, idx, n = ref_spectra.shape[0]).sum() / r
+
+        norm = 1
+        if as_pct:
+            # Divide by the range of the measured data; minimum is zero
+            norm = arr.max()
+            return str(round(rmse_value / norm * 100, 2)) + '%'
+
+        return round(rmse_value / norm, 2)
+
 
 def combine_endmembers_and_normalize(abundances, es=(1, 2), at_end=True, nodata=-9999):
     '''
@@ -665,12 +728,13 @@ def predict_spectra_from_abundance(abundances, endmembers):
     Predicts the mixed image from the endmember spectra and the fractional
     abundances, i.e. R = AS + e, where R is the reflectance of a given pixel,
     S is the matrix of endmember spectra, and A is the matrix of abundances.
-    Endmembers should be in (p x k) form, where each column corresponds to the
+    Endmembers should be in (p x q) form, where each column corresponds to the
     spectra of a given endmember. Return either a (p x 1) vector of the
     predicted (mixed) spectra or a (p x (m*n)) matrix of the predicted (mixed)
     spectra for (m*n) total abundance estimates. Arguments:
-        abundances  (1 x k) vector of abundances for k abundance types
-        endmembers  (k x p) vector of endmember spectra for p spectral bands
+        abundances  (c x q) vector of abundances for q abundance types for
+                    c total pixels (1 or more)
+        endmembers  (q x p) vector of endmember spectra for p spectral bands
     '''
     return np.dot(abundances, endmembers).swapaxes(0, 1)
 
@@ -766,70 +830,3 @@ def subtract_endmember_and_normalize(abundances, e):
 
     return np.apply_along_axis(lambda x: x / x.sum(), 0, stack)\
         .reshape((shp[0] - 1, shp[1], shp[2]))
-
-
-def validate_abundance_by_forward_model(
-        reference, points, *abundances, r=10000, as_pct=True, dd=True,
-        nodata=-9999):
-    '''
-    Validates abundance through a forward model that predicts the
-    reflectance at each pixel from the reflectance of each of
-    the endmembers and their fractional abundances. Arguments:
-        reference   The reference image (e.g., TM/ETM+ reflectance), an np.ndarray or gdal.Dataset
-        points      The XY points at which the endmembers are located
-        abundances  One or more abundance maps, as file paths
-        r           The number of random samples to take from the forward model
-        as_pct      Report RMSE as a percentage?
-        dd          XY points are in decimal degrees?
-        nodata      The NoData value
-    '''
-    # Can accept either a gdal.Dataset or numpy.array instance
-    if not isinstance(reference, np.ndarray):
-        rastr = reference.ReadAsArray()
-
-    else:
-        rastr = reference.copy()
-
-    # Get the spectra for each endmember from the reference dataset
-    spectra = spectra_at_xy(rastr, points, gt = reference.GetGeoTransform(),
-        wkt = reference.GetProjection(), dd = dd)
-
-    # Convert the NoData values to zero reflectance; reshape the array
-    rastr[rastr==nodata] = 0
-    spectra[spectra==nodata] = 0
-    shp = rastr.shape
-    rast = rastr.reshape((shp[0], shp[1]*shp[2]))
-
-    # Generate 1000 random sampling indices
-    idx = np.random.choice(np.arange(0, rast.shape[1]), r)
-
-    # Predict the reflectances!
-    stats = []
-    for path in abundances:
-        abundance_map, gt, wkt = as_array(path)
-
-        # Get the predicted reflectances
-        preds = predict_spectra_from_abundance(ravel(abundance_map), spectra)
-        assert preds.shape == rast.shape, 'Prediction and observation matrices are not the same size'
-
-        # Take the mean RMSE (sum of RMSE divided by number of pixels), after
-        #   the residuals are normalized by the number of endmembers
-        rmse_value = rmse(rast, preds, idx, n = spectra.shape[0]).sum() / r
-
-        norm = 1
-        if as_pct:
-            # Divide by the range of the measured data; minimum is zero
-            norm = rast.max()
-
-        stats.append(rmse_value / norm)
-
-    for i, p, in enumerate(abundances):
-        if as_pct:
-            print('%s%% -- [%s]' % (str(round(stats[i] * 100, 2)).rjust(15),
-                os.path.basename(p)))
-
-        else:
-            print('%s -- [%s]' % (str(round(stats[i], 2)).rjust(15),
-                os.path.basename(p)))
-
-    return stats
