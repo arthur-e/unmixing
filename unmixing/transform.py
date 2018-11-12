@@ -1,6 +1,14 @@
 '''
 This module contains image processing and transformation utilities such as the
 Tasseled Cap transformation.
+
+* `biophysical_composition_index()`
+* `ndvi()`
+* `mnf_rotation()`
+* `tasseled_cap_oli()`
+* `tasseled_cap_tm()`
+* `tasseled_cap_etm_plus()`
+* `rndsi()`
 '''
 
 import numpy as np

@@ -5,25 +5,30 @@ Interactive Unmixing Tools
 Overview
 ========
 
-This is a library of interactive tools and functions for:
+This is a library of interactive tools and functions for performing linear spectral mixture analysis (LSMA) and spatially adaptive spectral mixture analysis (SASMA).
+It supports parallel fully constrained least-squares (FCLS) mixture analysis over multiple processes, allowing for very efficient mapping of endmember abundances, both in the spatially adaptive approach and in regular LSMA.
+In detail, the `unmixing` module includes tools and functions to support:
 
-- Stacking and clipping raster bands from any GDAL file format, including HDF;
+- Stacking raster bands from any GDAL file format, including HDF;
 - Applying a mask or a combination of masks to a raster;
 - Generating raster masks from saturated pixels or using density slicing (e.g., to mask water pixels);
 - Applying CFMask output and other quality assurance layers from the USGS;
 - Band-wise compositing of reflectance (or fraction/ abundance images);
-- Tasseled cap transformation;
+- Tasseled cap transformation and other indices including NDVI and RNDSI;
 - Dimensionality reduction through the Minimum Noise Fraction (MNF);
 - Radiometric rectification of a raster time series;
 - Visualizing the mixing space of a moderate resolution raster;
 - Interactive selection of pixels in the mixing space, which are then captured in a KML file;
 - Endmember induction and plotting of endmembers for linear spectral mixture analysis (LSMA);
 - Fully constrained least squares (FCLS) unmixing;
+- Spatial interpolation of endmembers for spatially adaptive spectral mixture analysis (SASMA);
+- Learning of endmember candidates for SASMA using classification and regression trees (CART);
 - Validation of unmixing through a forward model of reflectance;
 
 **For an overview and tutorial on how to use this library, check out the iPython Notebook(s) in the** ``docs/`` **folder:**
 
 - <https://github.com/arthur-e/unmixing/blob/master/docs/Overview_LSMA_in_Python.ipynb>
+- <https://github.com/arthur-e/unmixing/blob/master/docs/Example_Spatially_Adaptive_Spectral_Mixture_Analysis_SASMA.ipynb>
 
 Installation and Setup
 ======================
@@ -46,6 +51,7 @@ Dependencies
 * ``pysptools``
 * ``GDAL``
 * ``pykml``
+* ``scikit-learn`` (For SASMA)
 
 Use System Dependencies
 -----------------------
