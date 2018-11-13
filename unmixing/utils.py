@@ -34,7 +34,7 @@ import json
 import os
 import re
 import numpy as np
-from osgeo import gdal, gdal_array, gdalnumeric, ogr, osr
+from osgeo import gdal, gdalconst, gdal_array, gdalnumeric, ogr, osr
 
 def as_array(path, band_axis=True):
     '''
@@ -556,6 +556,50 @@ def get_coord_transform(source_epsg, target_epsg):
     source_ref.ImportFromEPSG(source_epsg)
     target_ref.ImportFromEPSG(target_epsg)
     return osr.CoordinateTransformation(source_ref, target_ref)
+
+
+def intersect_rasters(ref_rast_defn, src_rast_defn, nodata=-9999,
+    gdt=gdalconst.GDT_Int32):
+    '''
+    Projects the source raster so that its top-left corner is aligned with
+    the reference raster. Then, clips or pads the source raster so that it
+    has the same number of rows and columns (covers the same extent at the
+    same grid resolution) as the reference raster.
+    Arguments:
+        ref_rast_defn   A (raster, gt, wkt) tuple for the reference raster
+        src_rast_defn   A (raster, gt, wkt) tuple for the source raster;
+                        the raster to be changed
+        nodata          The NoData value to fill in where the reference
+                        raster is larger
+        gdt             The GDAL data type to use for the output raster
+
+    NOTE: If the reference raster's top-left corner is far left and/or above
+    that of the source raster, the interesect raster may contain no data
+    from the original raster, i.e., an empty raster will result.
+    '''
+    rast_ref, gt, wkt = ref_array_defn
+    rast_src, gt0, wkt0 = array_defn
+    # Create a new raster with the desired attributes
+    width, height = (rast_ref.RasterXSize, rast_ref.RasterYSize)
+    width0, height0 = (rast_src.RasterXSize, rast_src.RasterYSize)
+    rast_out = gdal.GetDriverByName('MEM').Create('temp.file',
+        width, height, rast_src.RasterCount, gdt)
+    rast_out.SetGeoTransform(gt) # Set the desired geotransform and projection
+    rast_out.SetProjection(wkt)
+    # Re-project the source image; now the top-left corners are aligned
+    gdal.ReprojectImage(rast_src, rast_out, wkt0, wkt, gdalconst.GRA_Bilinear)
+    arr = rast_out.ReadAsArray()
+    del rast_src # Delete original raster references
+    del rast_ref
+    del rast_out
+    array_out = arr[:,0:height,0:width] # Clip src to ref extents
+
+    # If either axis is longer in the reference image than in the source image
+    if (width > width0) or (height > height0):
+        diffs = ((0, width - width0), (0, height - height0))
+        array_out = np.pad(array_out, diffs)
+
+    return array_to_raster(array_out, gt, wkt)
 
 
 def mae(reference, predictions, idx=None, n=1):
