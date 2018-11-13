@@ -602,10 +602,18 @@ def intersect_rasters(ref_rast_defn, src_rast_defn, nodata=-9999,
     del rast_ref
     del rast_out
     # Clip the extent of the src image if ref is smaller
-    ch, cw = arr.shape[1:]
+    if arr.ndim > 2: ch, cw = arr.shape[1:]
+    else: ch, cw = arr.shape
     if (width <= width0): cw = width # Clip src to ref extents
     if (height <= height0): ch = height
-    return array_to_raster(arr[:,0:ch,0:cw], gt, wkt)
+
+    if arr.ndim > 2:
+        arr_out = arr[:,0:ch,0:cw]
+
+    else:
+        arr_out = arr[0:ch,0:cw]
+
+    return array_to_raster(arr_out, gt, wkt)
 
 
 def mae(reference, predictions, idx=None, n=1):
