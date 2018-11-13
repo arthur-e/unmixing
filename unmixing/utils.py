@@ -16,7 +16,7 @@ Contains:
 * `density_slice()`
 * `dump_raster()`
 * `get_coord_transform()`
-* `intersect_arrays()`
+* `intersect_rasters()`
 * `mae()`
 * `mask_ledaps_qa()`
 * `mask_saturation()`
@@ -577,29 +577,35 @@ def intersect_rasters(ref_rast_defn, src_rast_defn, nodata=-9999,
     that of the source raster, the interesect raster may contain no data
     from the original raster, i.e., an empty raster will result.
     '''
-    rast_ref, gt, wkt = ref_array_defn
-    rast_src, gt0, wkt0 = array_defn
+    rast_ref, gt, wkt = ref_rast_defn
+    rast_src, gt0, wkt0 = src_rast_defn
     # Create a new raster with the desired attributes
     width, height = (rast_ref.RasterXSize, rast_ref.RasterYSize)
     width0, height0 = (rast_src.RasterXSize, rast_src.RasterYSize)
     rast_out = gdal.GetDriverByName('MEM').Create('temp.file',
         width, height, rast_src.RasterCount, gdt)
-    rast_out.SetGeoTransform(gt) # Set the desired geotransform and projection
+
+    # Initialize and set the NoData value
+    for i in range(1, rast_src.RasterCount + 1):
+        b = rast_out.GetRasterBand(i)
+        b.Fill(nodata)
+        b.SetNoDataValue(nodata)
+
+    # Set the desired geotransform, and projection
+    rast_out.SetGeoTransform(gt)
     rast_out.SetProjection(wkt)
+
     # Re-project the source image; now the top-left corners are aligned
     gdal.ReprojectImage(rast_src, rast_out, wkt0, wkt, gdalconst.GRA_Bilinear)
     arr = rast_out.ReadAsArray()
     del rast_src # Delete original raster references
     del rast_ref
     del rast_out
-    array_out = arr[:,0:height,0:width] # Clip src to ref extents
-
-    # If either axis is longer in the reference image than in the source image
-    if (width > width0) or (height > height0):
-        diffs = ((0, width - width0), (0, height - height0))
-        array_out = np.pad(array_out, diffs)
-
-    return array_to_raster(array_out, gt, wkt)
+    # Clip the extent of the src image if ref is smaller
+    ch, cw = arr.shape[1:]
+    if (width <= width0): cw = width # Clip src to ref extents
+    if (height <= height0): ch = height
+    return array_to_raster(arr[:,0:ch,0:cw], gt, wkt)
 
 
 def mae(reference, predictions, idx=None, n=1):
