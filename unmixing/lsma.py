@@ -238,8 +238,9 @@ class FCLSAbundanceMapper(AbstractAbundanceMapper):
         return np.concatenate(combined_result, axis = 1)\
             .reshape((shp[0], shp[1], 3))
 
-    def validate_by_forward_model(self, abundances, ref_spectra=None,
-        ref_em_locations=None, dd=False, nodata=-9999, r=10000, as_pct=True):
+    def validate_by_forward_model(
+            self, abundances, ref_spectra=None, ref_em_locations=None,
+            dd=False, nodata=-9999, r=10000, as_pct=True):
         '''
         Validates LSMA result in the forward model of reflectance, i.e.,
         compares the observed reflectance in the original (mixed) image to the
@@ -302,7 +303,8 @@ class FCLSAbundanceMapper(AbstractAbundanceMapper):
         return round(rmse_value / norm, 2)
 
 
-def combine_endmembers_and_normalize(abundances, es=(1, 2), at_end=True, nodata=-9999):
+def combine_endmembers_and_normalize(
+        abundances, es=(1, 2), at_end=True, nodata=-9999):
     '''
     Combines two endmembers from a fraction image into a single endmember.
     If the original endmember abundances summed to one, they will sum to one
@@ -368,7 +370,8 @@ def convex_hull_graham(points, indices=False):
     return hull
 
 
-def endmembers_by_maximum_angle(rast, targets, ref_target, gt=None, wkt=None, dd=False):
+def endmembers_by_maximum_angle(
+        rast, targets, ref_target, gt=None, wkt=None, dd=False):
     '''
     Locates endmembers in (2-dimensional) feature space as the triad (3-corner
     simplex) that maximizes the angle formed with a reference endmember target.
@@ -432,7 +435,8 @@ def endmembers_by_maximum_angle(rast, targets, ref_target, gt=None, wkt=None, dd
     return (np.array(specs), locs)
 
 
-def endmembers_by_maximum_area(rast, targets, area_dim=2, gt=None, wkt=None, dd=False):
+def endmembers_by_maximum_area(
+        rast, targets, area_dim=2, gt=None, wkt=None, dd=False):
     '''
     Find up to four (4) endmembers by findng the maximum volume of the mixing
     space defined by every possible combination of endmembers where each
@@ -460,7 +464,8 @@ def endmembers_by_maximum_area(rast, targets, area_dim=2, gt=None, wkt=None, dd=
     return (np.array(specs), locs)
 
 
-def endmembers_by_maximum_volume(rast, targets, ref_target=None, ndim=3, gt=None, wkt=None, dd=False):
+def endmembers_by_maximum_volume(
+        rast, targets, ref_target=None, ndim=3, gt=None, wkt=None, dd=False):
     '''
     Arguments:
         rast        The raster that describes the feature space
@@ -479,7 +484,8 @@ def endmembers_by_maximum_volume(rast, targets, ref_target=None, ndim=3, gt=None
         #   of the mixing space spanned by these endmembers
         return list(map(np.abs, map(np.linalg.det, spec_map)))
 
-    spec_map, coord_map = iterate_endmember_combinations(rast, targets, ref_target, ndim, gt, wkt, dd)
+    spec_map, coord_map = iterate_endmember_combinations(
+        rast, targets, ref_target, ndim, gt, wkt, dd)
 
     volumes = calc_volume(spec_map)
     idx = volumes.index(max(volumes))
@@ -515,8 +521,9 @@ def endmembers_by_query(rast, query, gt, wkt, dd=False):
     ], gt, wkt, dd=dd))
 
 
-def hall_rectification(reference, subject, out_path, ref_set, sub_set, dd=False, nodata=-9999,
-    dtype=np.int32, keys=('High/Bright', 'Low/Dark')):
+def hall_rectification(
+        reference, subject, out_path, ref_set, sub_set, dd=False,
+        nodata=-9999, dtype=np.int32, keys=('High/Bright', 'Low/Dark')):
     '''
     Performs radiometric rectification after Hall et al. (1991) in Remote
     Sensing of Environment. Assumes first raster is the reference image and
@@ -568,10 +575,13 @@ def hall_rectification(reference, subject, out_path, ref_set, sub_set, dd=False,
     # Dump the raster to a file
     out_path = os.path.join(out_path, 'rect_%s' % os.path.basename(subject.GetDescription()))
     dump_raster(
-        array_to_raster(arr2, subject.GetGeoTransform(), subject.GetProjection(), dtype=dtype), out_path)
+        array_to_raster(
+            arr2, subject.GetGeoTransform(), subject.GetProjection(),
+        dtype=dtype), out_path)
 
 
-def iterate_endmember_combinations(rast, targets, ref_target=None, ndim=3, gt=None, wkt=None, dd=False):
+def iterate_endmember_combinations(
+        rast, targets, ref_target=None, ndim=3, gt=None, wkt=None, dd=False):
     '''
     Creates all possible combinations of endmembers from a common pool or from
     among groups of possible endmembers (when `targets` is a dictionary). When
@@ -675,7 +685,8 @@ def normalize_reflectance_within_image(rast, nodata=-9999, scale=100):
     return rastr_normalized
 
 
-def point_to_pixel_geometry(points, source_epsg=None, target_epsg=None, pixel_side_length=30):
+def point_to_pixel_geometry(
+        points, source_epsg=None, target_epsg=None, pixel_side_length=30):
     '''
     Where points is a list of X,Y tuples and X and Y are coordinates in
     meters, returns a series of OGR Polygons where each Polygon is the
@@ -778,8 +789,8 @@ def ravel_and_filter(arr, filter=True, nodata=-9999):
     return arr
 
 
-def report_raster_dynamic_range(path, bands=(1,2,3,4,5,7),
-        tpl='HDF4_EOS:EOS_GRID:"%s":Grid:sr_band%d', lj=40):
+def report_raster_dynamic_range(
+        path, bands=(1,2,3,4,5,7), tpl='HDF4_EOS:EOS_GRID:"%s":Grid:sr_band%d', lj=40):
     '''
     Prints out the dynamic range of a given raster, averaged across the bands.
     Arguments:

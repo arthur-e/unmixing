@@ -143,8 +143,8 @@ def tasseled_cap_oli(rast, offset=False, nodata=-9999, ncomp=3):
     return __tasseled_cap__(rast, r, offset, ncomp)
 
 
-def tasseled_cap_tm(rast, reflectance=True, offset=False, nodata=-9999,
-        ncomp=3):
+def tasseled_cap_tm(
+        rast, reflectance=True, offset=False, nodata=-9999, ncomp=3):
     '''
     Applies the Tasseled Cap transformation for TM data. Assumes that the TM
     data are TM reflectance data (i.e., Landsat Surface Reflectance). The
@@ -182,7 +182,8 @@ def tasseled_cap_tm(rast, reflectance=True, offset=False, nodata=-9999,
     return __tasseled_cap__(rast, r, offset, ncomp)
 
 
-def tasseled_cap_etm_plus(rast, toa=True, offset=False, nodata=-9999, ncomp=3):
+def tasseled_cap_etm_plus(
+        rast, toa=True, offset=False, nodata=-9999, ncomp=3):
     '''
     Applies the Tasseled Cap transformation for ETM+ data. The coefficients
     for come from Liu et al. (2016) in the Journal of Spatial Science.

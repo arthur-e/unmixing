@@ -39,7 +39,9 @@ from osgeo import gdal, gdalconst, gdal_array, gdalnumeric, ogr, osr
 def as_array(path, band_axis=True):
     '''
     A convenience function for opening a raster as an array and accessing its
-    spatial information; takes a single string argument.
+    spatial information; takes a single string argument. Arguments:
+        path        The path of the raster file to open as an array
+        band_axis   True to include a band axis, even for single-band rasters
     '''
     ds = gdal.Open(path)
     arr = ds.ReadAsArray()
@@ -57,7 +59,9 @@ def as_array(path, band_axis=True):
 
 def as_mask(path, nodata=-9999):
     '''
-    Converts all non-zero values in all bands to ones.
+    Converts all non-zero values in all bands to ones. Arguments:
+        path    The path of the raster file to open as a mask array
+        nodata  The NoData value; these areas not masked
     '''
     rast, gt, wkt = as_array(path)
 
@@ -96,7 +100,8 @@ def as_mask(path, nodata=-9999):
 def as_raster(path):
     '''
     A convenience function for opening a raster and accessing its spatial
-    information; takes a single string argument.
+    information; takes a single string argument. Arguments:
+        path    The path of the raster file to open as a gdal.Dataset
     '''
     ds = gdal.Open(path)
     gt = ds.GetGeoTransform()
@@ -131,7 +136,6 @@ def array_to_raster(a, gt, wkt, xoff=None, yoff=None, dtype=None):
 
     rast.SetGeoTransform(gt)
     rast.SetProjection(wkt)
-
     return rast
 
 
@@ -145,7 +149,6 @@ def array_to_raster_clone(a, proto, xoff=None, yoff=None):
         yoff    The offset in the y-direction; should be provided when clipped
     '''
     rast = gdal_array.OpenNumPyArray(a)
-
     kwargs = dict()
     if xoff is not None and yoff is not None:
         kwargs = dict(xoff=xoff, yoff=yoff)
@@ -155,7 +158,6 @@ def array_to_raster_clone(a, proto, xoff=None, yoff=None):
         proto = gdal.Open(proto)
 
     gdalnumeric.CopyDatasetInfo(proto, rast, **kwargs)
-
     return rast
 
 
@@ -297,7 +299,8 @@ def combine_masks(*masks, multiply=False):
     mask would maks only those pixels that are "bad" in all images.
     Arguments:
         [masks ...] Any number of numpy.ndarrays, all of the same shape
-        multiply    True to create a superposition of zeros (by multiplying masks together)
+        multiply    True to create a superposition of zeros
+                    (by multiplying masks together)
     '''
     base = np.zeros(masks[0].shape)
     if multiply:
@@ -318,7 +321,9 @@ def combine_masks(*masks, multiply=False):
     return base
 
 
-def composite(reducers, *rasters, normalize='sum', nodata=-9999.0, dtype=np.float32):
+def composite(
+        reducers, *rasters, normalize='sum', nodata=-9999.0,
+        dtype=np.float32):
     '''
     NOTE: Uses masked arrays in NumPy and therefore is MUCH slower than the
     `composite2()` function, which is equivalent in output.
@@ -330,19 +335,25 @@ def composite(reducers, *rasters, normalize='sum', nodata=-9999.0, dtype=np.floa
     value. If None is specified as a reducer, the corresponding band(s) will
     be dropped. Combining None reducer(s) with a normalized sum effectively
     subtracts an endmember under the unity constraint. Arguments:
-        reducers    One of ('min', 'max', 'mean', 'median', None) for each endmember
+        reducers    One of ('min', 'max', 'mean', 'median', None) for
+                    each endmember
         rasters     One or more raster files to composite
         normalize   True (by default) to normalize results by their sum
         nodata      The NoData value (defaults to -9999)
-        dtype       The data type to coerce in the output array; very important if the desired output is float but NoData value is integer
+        dtype       The data type to coerce in the output array; very
+                    important if the desired output is float but NoData
+                    value is integer
     '''
     shp = rasters[0].shape
     num_non_null_bands = shp[0] - len([b for b in reducers if b is None])
-    assert all(map(lambda x: x == shp, [r.shape for r in rasters])), 'Rasters must have the same shape'
-    assert len(reducers) == shp[0], 'Must provide a reducer for each band (including None to drop the band)'
+    assert all(map(lambda x: x == shp, [r.shape for r in rasters])),
+        'Rasters must have the same shape'
+    assert len(reducers) == shp[0],
+        'Must provide a reducer for each band (including None to drop the band)'
 
     # Swap the sequence of rasters for a sequence of bands, then collapse the X-Y axes
-    stack = np.array(rasters).swapaxes(0, 1).reshape(shp[0], len(rasters), shp[-1]*shp[-2])
+    stack = np.array(rasters).swapaxes(0, 1).reshape(
+        shp[0], len(rasters), shp[-1]*shp[-2])
 
     # Mask out NoData values
     stack_masked = np.ma.masked_where(stack == nodata, stack)
@@ -354,7 +365,8 @@ def composite(reducers, *rasters, normalize='sum', nodata=-9999.0, dtype=np.floa
             band_arrays.append(getattr(np.ma, reducers[i])(stack_masked[i, ...], axis=0))
 
     # Stack each reduced band (and reshape to multi-band image)
-    final_stack = np.ma.vstack(band_arrays).reshape((num_non_null_bands, shp[-2], shp[-1]))
+    final_stack = np.ma.vstack(band_arrays).reshape(
+        (num_non_null_bands, shp[-2], shp[-1]))
 
     # Calculate a normalized sum (e.g., fractions must sum to one)
     if normalize is not None:
@@ -370,11 +382,12 @@ def composite(reducers, *rasters, normalize='sum', nodata=-9999.0, dtype=np.floa
 
     # NOTE: Essential to cast type, e.g., to float in case first pixel (i.e. top-left) is all NoData of an integer type
     final_stack.set_fill_value(dtype(nodata)) # Fill NoData for NaNs
-
     return final_stack.filled()
 
 
-def composite2(reducers, *rasters, normalize='sum', nodata=-9999.0, dtype=np.float32):
+def composite2(
+        reducers, *rasters, normalize='sum', nodata=-9999.0,
+        dtype=np.float32):
     '''
     Creates a multi-image (multi-date) composite from input rasters. The
     reducers argument specifies, in the order of the bands (endmembers), how
@@ -387,15 +400,20 @@ def composite2(reducers, *rasters, normalize='sum', nodata=-9999.0, dtype=np.flo
     before calculation. If None is specified as a reducer, the corresponding
     band(s) will be dropped. Combining None reducer(s) with a normalized sum
     effectively subtracts an endmember under the unity constraint. Arguments:
-        reducers    One of ('min', 'max', 'mean', 'min*', 'max*', 'mean*', 'median', None) for each endmember
+        reducers    One of ('min', 'max', 'mean', 'min*', 'max*',
+                    'mean*', 'median', None) for each endmember
         rasters     One or more raster files to composite
         normalize   True (by default) to normalize results by their sum
         nodata      The NoData value (defaults to -9999)
-        dtype       The data type to coerce in the output array; very important if the desired output is float but NoData value is integer
+        dtype       The data type to coerce in the output array; very
+                    important if the desired output is float but NoData
+                    value is integer
     '''
     shp = rasters[0].shape
-    assert all(map(lambda x: x == shp, [r.shape for r in rasters])), 'Rasters must have the same shape'
-    assert len(reducers) == shp[0] or len(reducers) == len(shp) - 1, 'Must provide a reducer for each endmember (including None for a median reduction)'
+    assert all(map(lambda x: x == shp, [r.shape for r in rasters])),
+        'Rasters must have the same shape'
+    assert len(reducers) == shp[0] or len(reducers) == len(shp) - 1,
+        'Must provide a reducer for each endmember (including None for a median reduction)'
 
     # For single-band rasters...
     if len(shp) < 3:
@@ -431,7 +449,8 @@ def composite2(reducers, *rasters, normalize='sum', nodata=-9999.0, dtype=np.flo
         band_arrays.append(np.apply_along_axis(reducer_func, 0, stack))
 
     # Stack each reduced band (and reshape to multi-band image)
-    final_stack = np.vstack(band_arrays).reshape((num_non_null_bands, shp[-2], shp[-1]))
+    final_stack = np.vstack(band_arrays).reshape(
+        (num_non_null_bands, shp[-2], shp[-1]))
 
     # Calculate a normalized sum/ mean/ etc. (e.g., fractions must sum to one)
     if normalize is not None:
@@ -466,7 +485,7 @@ def density_slice(rast, rel=np.less_equal, threshold=1000, nodata=-9999):
 
 def dump_raster(rast, rast_path, xoff=0, yoff=0, driver='GTiff', nodata=None):
     '''
-    Creates a raster file from a given GDAL dataset (raster). Arguments:
+    Creates a raster file from a given gdal.Dataset instance. Arguments:
         rast        A gdal.Dataset; does NOT accept NumPy array
         rast_path   The path of the output raster file
         xoff        Offset in the x-direction; should be provided when clipped
@@ -477,7 +496,8 @@ def dump_raster(rast, rast_path, xoff=0, yoff=0, driver='GTiff', nodata=None):
     driver = gdal.GetDriverByName(driver)
     sink = driver.Create(rast_path, rast.RasterXSize, rast.RasterYSize,
         rast.RasterCount, rast.GetRasterBand(1).DataType)
-    assert sink is not None, 'Cannot create dataset; there may be a problem with the output path you specified'
+    assert sink is not None,
+        'Cannot create dataset; there may be a problem with the output path you specified'
     sink.SetGeoTransform(rast.GetGeoTransform())
     sink.SetProjection(rast.GetProjection())
 
@@ -525,7 +545,8 @@ def fill_nan_bandwise(arr, fill_values=None):
         arr2 = arr.reshape((shp[0], shp[1] * shp[2]))
 
     if fill_values is not None:
-        assert len(fill_values) == shp[0], 'If specifying a vector of fill values, the length must equal the number of bands'
+        assert len(fill_values) == shp[0],
+            'If specifying a vector of fill values, the length must equal the number of bands'
         fill_values = np.array(fill_values).reshape((shp[0],))
 
     else:
@@ -558,8 +579,8 @@ def get_coord_transform(source_epsg, target_epsg):
     return osr.CoordinateTransformation(source_ref, target_ref)
 
 
-def intersect_rasters(ref_rast_defn, src_rast_defn, nodata=-9999,
-    gdt=gdalconst.GDT_Int32):
+def intersect_rasters(
+        ref_rast_defn, src_rast_defn, nodata=-9999, gdt=gdalconst.GDT_Int32):
     '''
     Projects the source raster so that its top-left corner is aligned with
     the reference raster. Then, clips or pads the source raster so that it
@@ -623,8 +644,8 @@ def mae(reference, predictions, idx=None, n=1):
         reference   Raster array of reference ("truth" or measured) data
         predictions Raster array of predictions
         idx         Optional array of indices at which to sample the arrays
-        n           A normalizing constant for residuals; e.g., the number
-                    of endmembers when calculating RMSE for modeled reflectance
+        n           A normalizing constant for residuals; e.g., the number of
+                    endmembers when calculating RMSE for modeled reflectance
     '''
     if idx is None:
         r = reference.shape[1]
@@ -641,13 +662,13 @@ def mae(reference, predictions, idx=None, n=1):
 
 def mask_by_query(rast, query, invert=False, nodata=-9999):
     '''
-    Mask pixels (across bands) that match a query in any one band or all bands.
-    For example: `query = rast[1,...] < -25` queries those pixels with a value
-    less than -25 in band 2; these pixels would be masked (if `invert=False`).
-    By default, the pixels that are queried are masked, but if `invert=True`,
-    the query serves to select pixels NOT to be masked (`np.invert()` can also
-    be called on the query before calling this function to achieve the same
-    effect). Arguments:
+    Mask pixels (across bands) that match a query in any one band or all
+    bands. For example: `query = rast[1,...] < -25` queries those pixels
+    with a value less than -25 in band 2; these pixels would be masked
+    (if `invert=False`). By default, the pixels that are queried are
+    masked, but if `invert=True`, the query serves to select pixels NOT
+    to be masked (`np.invert()` can also be called on the query before
+    calling this function to achieve the same effect). Arguments:
         rast    A gdal.Dataset or numpy.array instance
         query   A NumPy boolean array representing the result of a query
         invert  True to invert the query
@@ -662,10 +683,12 @@ def mask_by_query(rast, query, invert=False, nodata=-9999):
 
     shp = rastr.shape
     if query.shape != rastr.shape:
-        assert len(query.shape) == 2 or len(query.shape) == len(shp), 'Query must either be 2-dimensional (single-band) or have a dimensionality equal to the raster array'
-        assert shp[-2] == query.shape[-2] and shp[-1] == query.shape[-1], 'Raster and query must be conformable arrays in two dimensions (must have the same extent)'
+        assert len(query.shape) == 2 or len(query.shape) == len(shp),
+            'Query must either be 2-dimensional (single-band) or have a dimensionality equal to the raster array'
+        assert shp[-2] == query.shape[-2] and shp[-1] == query.shape[-1],
+            'Raster and query must be conformable arrays in two dimensions (must have the same extent)'
 
-        # Transform the query into a 1-band array and then into a multi-band array
+        # Transform query into a 1-band array and then into a multi-band array
         query = query.reshape((1, shp[-2], shp[-1])).repeat(shp[0], axis=0)
 
     # Mask out areas that match the query
@@ -718,7 +741,8 @@ def mask_ledaps_qa(rast, mask, nodata=-9999):
     #   we take the most common QA bit-packed value and assume it refers to
     #   the "okay" pixels
     mode = np.argmax(np.bincount(maskr.ravel()))
-    assert mode > 4 and mode < 12287, "The modal value corresponds to a known error value"
+    assert mode > 4 and mode < 12287,
+        "The modal value corresponds to a known error value"
     maskr[np.isnan(maskr)] = 0
     maskr[maskr != mode] = 0
     maskr[maskr == mode] = 1
@@ -807,14 +831,14 @@ def pixel_to_xy(pixel_pairs, gt=None, wkt=None, path=None, dd=False):
 
 def rmse(reference, predictions, idx=None, n=1):
     '''
-    RMSE for (p x n) raster arrays, where p is the number of bands and n is the
-    number of pixels. RMSE is calculated after Powell et al. (2007) in Remote
-    Sensing of the Environment. Arguments:
+    RMSE for (p x n) raster arrays, where p is the number of bands and n is
+    the number of pixels. RMSE is calculated after Powell et al. (2007) in
+    Remote Sensing of the Environment. Arguments:
         reference   Raster array of reference ("truth" or measured) data
         predictions Raster array of predictions
         idx         Optional array of indices at which to sample the arrays
-        n           A normalizing constant for residuals; e.g., the number
-                    of endmembers when calculating RMSE for modeled reflectance
+        n           A normalizing constant for residuals; e.g., the number of
+                    endmembers when calculating RMSE for modeled reflectance
     '''
     shp = reference.shape
     if idx is None:
@@ -840,7 +864,8 @@ def saturation_mask(rast, saturation_value=10000, nodata=-9999):
     considered valid on the range [0, 10,000]) and False everywhere else.
     Arguments:
         rast                A gdal.Dataset or NumPy array
-        saturation_value    The value beyond which pixels are considered saturated
+        saturation_value    The value beyond which pixels are considered
+                            saturated
         nodata              The NoData value; defaults to -9999.
     '''
     # Can accept either a gdal.Dataset or numpy.array instance
@@ -867,7 +892,8 @@ def spectra_at_idx(hsi_cube, idx):
     provided. NOTE: Assumes an HSI cube (transpose of a GDAL raster).
     Arguments:
         hsi_cube    An HSI cube (n x m x p)
-        idx         An array of indices that specify one or more pixels in a raster
+        idx         An array of indices that specify one or more pixels in a
+                    raster
     '''
     return np.array([hsi_cube[p[0],p[1],:] for p in idx])
 
@@ -879,7 +905,8 @@ def spectra_at_xy(rast, xy, gt=None, wkt=None, dd=False):
         rast    A gdal.Dataset or NumPy array
         xy      An array of X-Y (e.g., longitude-latitude) pairs
         gt      A GDAL GeoTransform tuple; ignored for gdal.Dataset
-        wkt     Well-Known Text projection information; ignored for gdal.Dataset
+        wkt     Well-Known Text projection information; ignored for
+                gdal.Dataset
         dd      Interpret the longitude-latitude pairs as decimal degrees
     Returns a (q x p) array of q endmembers with p bands.
     '''
@@ -903,7 +930,7 @@ def stack_hdf_as_array(path, bands=(1,2,3,4,5,7), tpl=None):
     Assumes that the GeoTransform for all layers is the same (for downstream
     clipping purposes). The output array will have shape (b, m, n) where b is
     the number of bands. Arguments:
-        path    The path to a GDAL dataset
+        path    The path to a raster to be opened as a gdal.Dataset
         bands   A tuple of the band numbers to include
         tpl     The template for an HDF4 subdataset path
     '''

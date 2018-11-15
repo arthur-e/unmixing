@@ -181,8 +181,9 @@ def kernel_idw_l1(size, band_num=None, normalize=False, moore_contiguity=False):
     return window
 
 
-def interpolate_endmember_map(spectra, em_locations, window, q=3, n=2,
-    labels=None, cval=0, nodata=-9999):
+def interpolate_endmember_map(
+        spectra, em_locations, window, q=3, n=2, labels=None, cval=0,
+        nodata=-9999):
     '''
     Creates synthetic image endmember maps (arrays); these endmembers are
     spatially interpolated from known endmember candidates. The end goal
