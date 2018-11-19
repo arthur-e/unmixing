@@ -346,10 +346,8 @@ def composite(
     '''
     shp = rasters[0].shape
     num_non_null_bands = shp[0] - len([b for b in reducers if b is None])
-    assert all(map(lambda x: x == shp, [r.shape for r in rasters])),
-        'Rasters must have the same shape'
-    assert len(reducers) == shp[0],
-        'Must provide a reducer for each band (including None to drop the band)'
+    assert all(map(lambda x: x == shp, [r.shape for r in rasters])), 'Rasters must have the same shape'
+    assert len(reducers) == shp[0], 'Must provide a reducer for each band (including None to drop the band)'
 
     # Swap the sequence of rasters for a sequence of bands, then collapse the X-Y axes
     stack = np.array(rasters).swapaxes(0, 1).reshape(
@@ -410,10 +408,8 @@ def composite2(
                     value is integer
     '''
     shp = rasters[0].shape
-    assert all(map(lambda x: x == shp, [r.shape for r in rasters])),
-        'Rasters must have the same shape'
-    assert len(reducers) == shp[0] or len(reducers) == len(shp) - 1,
-        'Must provide a reducer for each endmember (including None for a median reduction)'
+    assert all(map(lambda x: x == shp, [r.shape for r in rasters])), 'Rasters must have the same shape'
+    assert len(reducers) == shp[0] or len(reducers) == len(shp) - 1, 'Must provide a reducer for each endmember (including None for a median reduction)'
 
     # For single-band rasters...
     if len(shp) < 3:
@@ -496,8 +492,7 @@ def dump_raster(rast, rast_path, xoff=0, yoff=0, driver='GTiff', nodata=None):
     driver = gdal.GetDriverByName(driver)
     sink = driver.Create(rast_path, rast.RasterXSize, rast.RasterYSize,
         rast.RasterCount, rast.GetRasterBand(1).DataType)
-    assert sink is not None,
-        'Cannot create dataset; there may be a problem with the output path you specified'
+    assert sink is not None, 'Cannot create dataset; there may be a problem with the output path you specified'
     sink.SetGeoTransform(rast.GetGeoTransform())
     sink.SetProjection(rast.GetProjection())
 
@@ -545,8 +540,7 @@ def fill_nan_bandwise(arr, fill_values=None):
         arr2 = arr.reshape((shp[0], shp[1] * shp[2]))
 
     if fill_values is not None:
-        assert len(fill_values) == shp[0],
-            'If specifying a vector of fill values, the length must equal the number of bands'
+        assert len(fill_values) == shp[0], 'If specifying a vector of fill values, the length must equal the number of bands'
         fill_values = np.array(fill_values).reshape((shp[0],))
 
     else:
@@ -683,10 +677,8 @@ def mask_by_query(rast, query, invert=False, nodata=-9999):
 
     shp = rastr.shape
     if query.shape != rastr.shape:
-        assert len(query.shape) == 2 or len(query.shape) == len(shp),
-            'Query must either be 2-dimensional (single-band) or have a dimensionality equal to the raster array'
-        assert shp[-2] == query.shape[-2] and shp[-1] == query.shape[-1],
-            'Raster and query must be conformable arrays in two dimensions (must have the same extent)'
+        assert len(query.shape) == 2 or len(query.shape) == len(shp), 'Query must either be 2-dimensional (single-band) or have a dimensionality equal to the raster array'
+        assert shp[-2] == query.shape[-2] and shp[-1] == query.shape[-1], 'Raster and query must be conformable arrays in two dimensions (must have the same extent)'
 
         # Transform query into a 1-band array and then into a multi-band array
         query = query.reshape((1, shp[-2], shp[-1])).repeat(shp[0], axis=0)
@@ -741,8 +733,7 @@ def mask_ledaps_qa(rast, mask, nodata=-9999):
     #   we take the most common QA bit-packed value and assume it refers to
     #   the "okay" pixels
     mode = np.argmax(np.bincount(maskr.ravel()))
-    assert mode > 4 and mode < 12287,
-        "The modal value corresponds to a known error value"
+    assert mode > 4 and mode < 12287, 'The modal value corresponds to a known error value'
     maskr[np.isnan(maskr)] = 0
     maskr[maskr != mode] = 0
     maskr[maskr == mode] = 1
@@ -795,8 +786,7 @@ def pixel_to_xy(pixel_pairs, gt=None, wkt=None, path=None, dd=False):
     NOTE: This method does not take into account pixel size and assumes a
             high enough image resolution for pixel size to be insignificant.
     '''
-    assert path is not None or (gt is not None and wkt is not None), \
-        'Function requires either a reference dataset or a geotransform and projection'
+    assert path is not None or (gt is not None and wkt is not None), 'Function requires either a reference dataset or a geotransform and projection'
 
     pixel_pairs = map(list, pixel_pairs)
     srs = osr.SpatialReference() # Create a spatial ref. for dataset
