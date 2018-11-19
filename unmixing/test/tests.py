@@ -391,6 +391,20 @@ class Utilities(Tester):
 
     test_dir = TEST_DIR
 
+    def test_combine_dicts(self):
+        '''
+        Combining dictionaries of lists should also be idempotent/ with no
+        side effects.
+        '''
+        foo = {'a': [1, 2, 3], 'b': [1]}
+        bar = {'a': [4], 'b': [2, 3]}
+        self.assertEqual(combine_dicts(foo, bar), {
+            'a': [1, 2, 3, 4],
+            'b': [1, 2, 3]
+        })
+        self.assertEqual(foo, {'a': [1, 2, 3], 'b': [1]})
+        self.assertEqual(bar, {'a': [4], 'b': [2, 3]})
+
     def test_file_raster_and_array_access(self):
         '''
         Tests that essential file reading and raster/array conversion utilities

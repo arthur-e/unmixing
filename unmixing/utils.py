@@ -260,29 +260,28 @@ def clean_mask(rast):
     return np.clip(rastr, a_min=0, a_max=1)
 
 
-def combine_dicts(dict1, dict2):
+def combine_dicts(*dicts):
     '''
     Combines two dictionaries that have lists as values. Arguments:
-        dict1   A dictionary
-        dict2   Another dictionary
+        dicts   Two or more dictionaries with lists as values
     '''
     d = dict()
-    keys = set(dict1.keys()).union(dict2.keys())
+    keys = set()
+    for a_dict in dicts:
+        keys = keys.union(a_dict.keys())
 
+    # Iterate through each input dictionary
     for key in keys:
-        # Create new lists for missing keys
-        try:
-            d[key] = dict1[key]
-        except KeyError:
-            try:
-                d[key] = dict2[key]
-            except KeyError:
-                pass
-        # Combine lists
-        try:
-            d[key].extend(dict2[key])
-        except KeyError:
-            pass
+        for a_dict in dicts:
+            # Skip keys not used in this dictionary
+            if key not in a_dict.keys():
+                continue
+
+            if key not in d.keys():
+                # Create missing keys in the output dictionary
+                d[key] = list()
+
+            d[key].extend(a_dict[key])
 
     return d
 
