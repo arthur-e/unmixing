@@ -523,7 +523,8 @@ def endmembers_by_query(rast, query, gt, wkt, dd=False):
 
 def hall_rectification(
         reference, subject, out_path, ref_set, sub_set, dd=False,
-        nodata=-9999, dtype=np.int32, keys=('High/Bright', 'Low/Dark')):
+        nodata=-9999, dtype=np.int32, keys=('High/Bright', 'Low/Dark'),
+        verbose=False):
     '''
     Performs radiometric rectification after Hall et al. (1991) in Remote
     Sensing of Environment. Assumes first raster is the reference image and
@@ -546,19 +547,23 @@ def hall_rectification(
     bright_targets, dark_targets = (sub_set[keys[0]], sub_set[keys[1]])
 
     # Calculate the mean reflectance in each band for bright, dark targets
-    bright_ref = spectra_at_xy(reference, ref_set[keys[0]], dd=dd).mean(axis=0)
-    dark_ref = spectra_at_xy(reference, ref_set[keys[1]], dd=dd).mean(axis=0)
+    brights = spectra_at_xy(reference, ref_set[keys[0]], dd=dd)
+    bright_ref = brights[brights[:,0] != nodata].mean(axis = 0)
+    darks = spectra_at_xy(reference, ref_set[keys[1]], dd=dd)
+    dark_ref = darks[darks[:,0] != nodata].mean(axis = 0)
+    if verbose:
+        print('-- Bright reference:', str(np.round(bright_ref, 0).tolist()))
+        print('-- Dark reference:', str(np.round(dark_ref, 0).tolist()))
 
     # Calculate transformation for the target image
     brights = spectra_at_xy(subject, bright_targets, dd=dd) # Prepare to filter NoData pixels
     darks = spectra_at_xy(subject, dark_targets, dd=dd)
     # Get the "subject" image means for each radiometric control set
-    mean_bright = brights[
-        np.sum(brights, axis=1) != (nodata * brights.shape[1])
-    ].mean(axis=0)
-    mean_dark = darks[
-        np.sum(darks, axis=1) != (nodata * darks.shape[1])
-    ].mean(axis=0)
+    mean_bright = brights[brights[:,0] != nodata].mean(axis = 0)
+    mean_dark = darks[darks[:,0] != nodata].mean(axis = 0)
+    if verbose:
+        print('-- Bright subject mean:', str(np.round(mean_bright, 0).tolist()))
+        print('-- Dark subject mean:', str(np.round(mean_dark, 0).tolist()))
 
     # Calculate the coefficients of the linear transformation
     m = (bright_ref - dark_ref) / (mean_bright - mean_dark)
