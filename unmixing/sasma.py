@@ -16,6 +16,9 @@ A typical SASMA analysis is performed within a search window:
 '''
 
 import numpy as np
+from itertools import product
+from functools import partial
+from concurrent.futures import ProcessPoolExecutor
 from scipy.ndimage import generic_filter
 from sklearn import tree
 from unmixing.utils import binary_mask
@@ -183,7 +186,7 @@ def kernel_idw_l1(size, band_num=None, normalize=False, moore_contiguity=False):
 
 def interpolate_endmember_map(
         spectra, em_locations, window, q=3, n=2, labels=None, cval=0,
-        nodata=-9999):
+        nodata=-9999, multiprocess=False):
     '''
     Creates synthetic image endmember maps (arrays); these endmembers are
     spatially interpolated from known endmember candidates. The end goal
@@ -196,12 +199,14 @@ def interpolate_endmember_map(
         window          A 2D NumPy array that serves as the moving window,
                         kernel, or filter used in SASMA.
         q               The number of endmember classes to synthesize.
-        n               The dimensionality of the spectral subspace
-        labels          The values in em_locations that uniquely identify
+        n               The dimensionality of the spectral subspace.
+        labels          The values in em_locations that uniquely identify.
                         each endmember class; default is [1,2,...,q]
         cval            The constant value: Replaces NoData and used in areas
                         outside the window; see NOTE below.
-        nodata          The NoData value
+        nodata          The NoData value.
+        multiprocess    True to generate multiple processes, one per
+                        endmember-band combination, i.e., q*n processes.
 
     Example of this routine on a tiny numeric array:
         ex = np.where(np.ndarray((1,5,5), dtype=np.int16) % 2 == 0, 0, 1)
@@ -229,29 +234,58 @@ def interpolate_endmember_map(
         labels = range(1, (q + 1))
 
     assert len(labels) <= spectra.shape[0], 'The spectra array must have p bands for p endmember class labels'
-    masked_spectra = []
-    for i in labels:
-        # Extract the individual endmember "band" images
-        masked_spectra.append(binary_mask(spectra[0:n,0:shp[1],0:shp[2]],
-            np.where(em_locations == i, 1, 0), nodata = nodata, invert = True))
+    masked_spectra = [ # Extract the individual endmember "band" images
+        binary_mask(spectra[j,...].reshape((1, shp[1], shp[2])),
+            np.where(em_locations == i, 1, 0), nodata = nodata,
+                invert = True) for i, j in list(product(labels, range(0, n)))
+    ]
 
+    if multiprocess:
+        with ProcessPoolExecutor(max_workers = len(masked_spectra)) as executor:
+            result = executor.map(
+                partial(interpolate_endmember_spectra, window = window,
+                    nodata = nodata),
+                masked_spectra)
+
+        result = list(result)
+
+    else:
+        result = []
+        for em_map in masked_spectra:
+            result.append(
+                interpolate_endmember_spectra(em_map, window, cval, nodata))
+
+    # "Let's get the band back together again"
+    synth_ems = []
+    for i in range(0, q): # Group bands by endmember type
+        synth_ems.append(np.concatenate(result[(i*n):((i+1)*n)], axis = 0))
+
+    return synth_ems
+
+
+def interpolate_endmember_spectra(em_map, window, cval=0, nodata=-9999):
+    '''
+    Spatially interpolates a single-band image using the given window; not
+    intended for direct use, rather, it is a module-level function for use
+    in a ProcessPoolExecutor's context as part of interpolate_endmember_map().
+    Arguments:
+        em_map  A single-band raster array with most, but not all, pixels
+                masked; these are interpolated from the values of the
+                unmasked pixels.
+        window  A square array representing a moving window.
+        cval    The constant value to use outside of the em_map array;
+                should be set to zero for proper interpolation of endmember
+                spectra.
+    '''
+    shp = em_map.shape
     w = np.max(window.shape) # Assume square window; longest of any equal side
     window = np.ravel(window) # For performance, used raveled arrays
-    synth_em_maps = [] # Holder for the final multi-band, synthetic EM maps
-    for em_map in masked_spectra:
-        synth_em_bands = []
-        for b in range(0, n):
-            em_avg_map = generic_filter(
-                # Fill NoData with zero --> no contribution to spatial sum
-                np.where(em_map[b,...] == nodata, cval, em_map[b,...]),
-                    # Multiply em_map in window by weights, then divide by
-                    #   the sum of weights in those non-zero areas
-                    lambda x: np.sum(np.multiply(x, window)) / np.sum(
-                        np.multiply(np.where(x == cval, 0, 1), window)),
-                    mode = 'constant', cval = cval, footprint = np.ones((w,w)))
-
-            synth_em_bands.append(em_avg_map.reshape((1, shp[1], shp[2])))
-
-        synth_em_maps.append(np.concatenate(synth_em_bands, axis = 0))
-
-    return synth_em_maps
+    em_avg_map = generic_filter(
+        # Fill NoData with zero --> no contribution to spatial sum
+        np.where(em_map[0,...] == nodata, cval, em_map[0,...]),
+            # Multiply em_map in window by weights, then divide by
+            #   the sum of weights in those non-zero areas
+            lambda x: np.sum(np.multiply(x, window)) / np.sum(
+                np.multiply(np.where(x == cval, 0, 1), window)),
+            mode = 'constant', cval = cval, footprint = np.ones((w,w)))
+    return em_avg_map.reshape((1, shp[1], shp[2]))
