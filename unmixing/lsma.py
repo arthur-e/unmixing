@@ -54,23 +54,19 @@ def lazy(fn):
 
 
 class AbstractAbundanceMapper(object):
-    def __init__(self, mixed_raster, gt, wkt, processes=1):
+    def __init__(self, mixed_raster, gt, wkt, nodata=-9999, processes=1):
         assert np.all(np.greater(mixed_raster.shape, 0)), 'Raster array cannot have any zero-length axis'
         self.shp = mixed_raster.shape
         self.mixed_raster = mixed_raster
         self.gt = gt
         self.wkt = wkt
+        self.nodata = nodata
         self.num_processes = processes
 
     @lazy
     def hsi(self):
         'Return HSI cube: a (p x m x n) raster is transformed to (n x m x p)'
         return self.mixed_raster.T
-
-    @lazy
-    def mnf(self):
-        'Return the MNF rotation in HSI form (n x m x p)'
-        return mnf_rotation(self.mixed_raster)
 
     def __partition__(self, base_array):
         # Creates index ranges for partitioning an array to work on over
@@ -166,6 +162,19 @@ class FCLSAbundanceMapper(AbstractAbundanceMapper):
     constraints are the sum-to-one and non-negativity constraints. Given
     q endmembers and p spectral bands, the mapper is forced to find
     abundances within a simplex in a (q-1)-dimensional subspace.
+    NOTE: The mixed_raster provided in instantation is assumed to correspond
+    exactly to the mixing space used to induce endmembers; if mixed_raster
+    was MNF- or PCA-transformed, for instance, the endmember spectra provided
+    in, e.g., map_abundances(), must match this transformation exactly.
+    Arguments:
+        mixed_raster    The raster to be unmixed; should NOT be in HSI form
+                        but should be MNF- or PCA-transformed to match any
+                        endmember spectra provided
+        gt              A GDAL GeoTransform tuple for the mixed_raster
+        wkt             Projection information as Well-Known Text for the
+                        mixed_raster
+        nodata          The NoData value for mixed_raster
+        processes       The number of processes to create in mixture analysis
     '''
     def __init__(self, *args, **kwargs):
         super(FCLSAbundanceMapper, self).__init__(*args, **kwargs)
@@ -215,8 +224,8 @@ class FCLSAbundanceMapper(AbstractAbundanceMapper):
         #   q <= n (Settle and Drake, 1993)
         k = q - 1 # Find q corners of simplex in (q-1) dimensions
         endmembers = endmembers[...,0:k]
-        shp = self.mnf.shape
-        base_array = self.mnf[:,:,0:k].reshape((shp[0] * shp[1], k))
+        shp = self.hsi.shape
+        base_array = self.hsi[:,:,0:k].reshape((shp[0] * shp[1], k))
 
         # Get indices for each process' work range
         work = self.__partition__(base_array)
@@ -252,8 +261,9 @@ class FCLSAbundanceMapper(AbstractAbundanceMapper):
             .reshape((shp[0], shp[1], q))
 
     def validate_by_forward_model(
-            self, abundances, ref_spectra=None, ref_em_locations=None,
-            dd=False, nodata=-9999, r=10000, as_pct=True):
+            self, ref_image, abundances, ref_spectra=None,
+            ref_em_locations=None, dd=False, nodata=-9999, r=10000,
+            as_pct=True):
         '''
         Validates LSMA result in the forward model of reflectance, i.e.,
         compares the observed reflectance in the original (mixed) image to the
@@ -262,6 +272,8 @@ class FCLSAbundanceMapper(AbstractAbundanceMapper):
         multiple endmember spectra; requires only one spectral profile per
         endmember type.
         Arguments:
+            ref_image   A raster array of the reference spectra (not MNF-
+                        transformed data).
             abundances  A raster array of abundances; a (q x m x n) array for
                         q abundance types (q endmembers).
             ref_spectra With single endmember spectra, user can provide the
@@ -277,7 +289,7 @@ class FCLSAbundanceMapper(AbstractAbundanceMapper):
                         RMSE.
             as_pct      Report normalized RMSE (as a percentage).
         '''
-        rastr = self.mixed_raster.copy()
+        rastr = ref_image.copy()
         assert (ref_spectra is not None) or (ref_em_locations is not None), 'When single endmember spectra are used, either ref_spectra or ref_em_locations must be provided'
 
         if ref_spectra is not None:
@@ -285,7 +297,7 @@ class FCLSAbundanceMapper(AbstractAbundanceMapper):
 
         else:
             # Get the spectra for each endmember from the reference dataset
-            ref_spectra = spectra_at_xy(self.mixed_raster, ref_em_locations,
+            ref_spectra = spectra_at_xy(ref_image, ref_em_locations,
                 self.gt, self.wkt, dd = dd)
 
         # Convert the NoData values to zero reflectance; reshape the array
