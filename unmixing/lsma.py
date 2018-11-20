@@ -29,7 +29,7 @@ import os
 import re
 import numpy as np
 from concurrent.futures import ProcessPoolExecutor
-from functools import reduce, partial
+from functools import reduce, partial, wraps
 from unmixing.transform import mnf_rotation
 from unmixing.utils import array_to_raster, as_array, as_raster, dump_raster, xy_to_pixel, pixel_to_xy, spectra_at_xy, rmse
 from lxml import etree
@@ -40,6 +40,19 @@ import pysptools.abundance_maps as sp_abundance
 import pysptools.classification as sp_classify
 import pysptools.material_count as sp_matcount
 
+def lazy(fn):
+    # Memoization for lazy-evaluated properties
+    # https://stackoverflow.com/questions/3012421/python-memoising-deferred-lookup-property-decorator
+    attr_name = '_lazy_' + fn.__name__
+    @property
+    @wraps(fn)
+    def lazyprop(self):
+        if not hasattr(self, attr_name):
+            setattr(self, attr_name, fn(self))
+        return getattr(self, attr_name)
+    return lazyprop
+
+
 class AbstractAbundanceMapper(object):
     def __init__(self, mixed_raster, gt, wkt, processes=1):
         assert np.all(np.greater(mixed_raster.shape, 0)), 'Raster array cannot have any zero-length axis'
@@ -49,12 +62,12 @@ class AbstractAbundanceMapper(object):
         self.wkt = wkt
         self.num_processes = processes
 
-    @property
+    @lazy
     def hsi(self):
         'Return HSI cube: a (p x m x n) raster is transformed to (n x m x p)'
         return self.mixed_raster.T
 
-    @property
+    @lazy
     def mnf(self):
         'Return the MNF rotation in HSI form (n x m x p)'
         return mnf_rotation(self.mixed_raster)
@@ -233,10 +246,10 @@ class FCLSAbundanceMapper(AbstractAbundanceMapper):
             # When chunking with multiple endmembers, we get list of lists
             ext_array = [y for x in combined_result for y in x] # Flatten once
             return np.concatenate(ext_array, axis = 1)\
-                .reshape((shp[0], shp[1], 3))
+                .reshape((shp[0], shp[1], q))
 
         return np.concatenate(combined_result, axis = 1)\
-            .reshape((shp[0], shp[1], 3))
+            .reshape((shp[0], shp[1], q))
 
     def validate_by_forward_model(
             self, abundances, ref_spectra=None, ref_em_locations=None,
