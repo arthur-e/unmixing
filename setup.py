@@ -1,20 +1,20 @@
 from distutils.core import setup
 
 setup(name = 'unmixing',
-    version = '0.1.0.dev',
+    version = '0.2.3.dev',
     description = 'Interactive tools for spectral mixture analysis of multispectral raster data',
     author = 'K. Arthur Endsley',
     author_email = 'endsley@umich.edu',
     url = 'https://www.github.com/arthur-e/unmixing',
     classifiers = [
-        'Development Status :: 2',
+        'Development Status :: 3',
         'Intended Audience :: Science/Research',
         'Topic :: Scientific/Engineering',
         'Topic :: Scientific/Engineering :: GIS'
     ],
     keywords = ['lsma spectral mixture analysis remote sensing raster'],
     packages = ['unmixing', 'unmixing.test'],
-    py_modules = ['utils', 'lsma', 'transform', 'visualize', 'tests'],
+    py_modules = ['utils', 'lsma', 'sasma', 'transform', 'visualize', 'tests'],
     install_requires = [
         'numpy >= 1.8.2',
         'scipy >= 0.13.3',
@@ -35,7 +35,9 @@ setup(name = 'unmixing',
             'multi7_mask.tiff',
             'multi7_raster_clip.tiff',
             'multi7_raster.tiff',
-            'multi7_raster2.tiff'
+            'multi7_raster2.tiff',
+            'LT05_020030_merge_19950712_stack_clip.tiff',
+            'LT05_020030_merge_19950712_VBD_endmember_PIFs.tiff'
             ]
         }
     )

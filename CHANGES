@@ -4,3 +4,4 @@ v0.1.2.dev, 2017-09-05 -- Refactored cfmask(); removed clipping and HDF-to-file 
 v0.2.0.dev, 2018-11-12 -- Spatially adaptive spectral mixture analysis added; parallel processing in LSMA
 v0.2.1.dev, 2018-11-19 -- New intersect_rasters() function in utils module; fixed hall_rectification() in lsma module
 v0.2.2.dev, 2018-11-20 -- In sasma module, interpolate_endmember_map() can now use multiple processes
+v0.2.3.dev, 2018-11-26 -- In lsma module, FCLSAbundanceMapper instances now require a raster that matches the spectral space of the endmembers (e.g., an MNF/PCA-transformed raster instead of the original)
