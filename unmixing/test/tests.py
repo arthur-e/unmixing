@@ -39,6 +39,7 @@ class Tester(unittest.TestCase):
 class FCLS(Tester):
     test_dir = TEST_DIR
     data_dir = DATA_DIR
+    test_data_100_110_hex_string = 'bea34345168cd1858fe5f9066c4403a806b9d6f2ffa7ddbdb3dd0ab354b513cd'
 
     def test_fcls_unmixing_with_single_endmember_spectra(self):
         '''
@@ -48,13 +49,14 @@ class FCLS(Tester):
         em_locs = [(326701, 4696895),(324978, 4699651), (328823, 4696835)]
         arr, gt, wkt = as_array(os.path.join(self.data_dir,
             'LT05_020030_merge_19950712_stack_clip.tiff'))
-        endmembers = spectra_at_xy(mnf_rotation(arr).T, em_locs, gt, wkt)
-        fcls_mapper = FCLSAbundanceMapper(arr[:,100:110,100:110],
+        arr_mnf = mnf_rotation(arr).T
+        endmembers = spectra_at_xy(arr_mnf, em_locs, gt, wkt)
+        fcls_mapper = FCLSAbundanceMapper(arr_mnf[:,100:110,100:110],
             gt, wkt, processes = 1)
         result = fcls_mapper.map_abundance(endmembers)
         hasher = hashlib.sha256()
         hasher.update(result)
-        self.assertEqual(hasher.hexdigest(), 'b042f3742910abd3505bf81a083eab6fc4684063ef30327f18d41327f2882b9f')
+        self.assertEqual(hasher.hexdigest(), self.test_data_100_110_hex_string)
 
     def test_fcls_unmixing_with_single_endmember_spectra_multicore(self):
         '''
@@ -65,16 +67,18 @@ class FCLS(Tester):
         arr, gt, wkt = as_array(os.path.join(self.data_dir,
             'LT05_020030_merge_19950712_stack_clip.tiff'))
         endmembers = spectra_at_xy(mnf_rotation(arr).T, em_locs, gt, wkt)
-        fcls_mapper1 = FCLSAbundanceMapper(arr[:,100:110,100:110],
+        arr_mnf = mnf_rotation(arr).T
+        endmembers = spectra_at_xy(arr_mnf, em_locs, gt, wkt)
+        fcls_mapper1 = FCLSAbundanceMapper(arr_mnf[:,100:110,100:110],
             gt, wkt, processes = 1)
-        fcls_mapper2 = FCLSAbundanceMapper(arr[:,100:110,100:110],
+        fcls_mapper2 = FCLSAbundanceMapper(arr_mnf[:,100:110,100:110],
             gt, wkt, processes = 2)
         result1 = fcls_mapper1.map_abundance(endmembers)
         result2 = fcls_mapper2.map_abundance(endmembers)
         self.assertTrue(np.all(np.equal(result1, result2)))
         hasher = hashlib.sha256()
         hasher.update(result2)
-        self.assertEqual(hasher.hexdigest(), 'b042f3742910abd3505bf81a083eab6fc4684063ef30327f18d41327f2882b9f')
+        self.assertEqual(hasher.hexdigest(), self.test_data_100_110_hex_string)
 
 
 class SASMA(Tester):
