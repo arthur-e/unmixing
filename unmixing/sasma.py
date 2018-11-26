@@ -136,7 +136,8 @@ def eye(size, band_num=None):
     return eye_win
 
 
-def kernel_idw_l1(size, band_num=None, normalize=False, moore_contiguity=False):
+def kernel_idw_l1(
+        size, band_num=None, normalize=False, moore_contiguity=False):
     '''
     Generates an inverse distance weighting (IDW) map simply by assigning
     each cell of a uniform grid an equal weight based on the L1 norm or
@@ -157,7 +158,7 @@ def kernel_idw_l1(size, band_num=None, normalize=False, moore_contiguity=False):
         normalize   If True, the weights in each band will sum to one
         moore_contiguity
                     Uses Moore's contiguity (or Queen's rule adjacency) in
-                    weighting; if False, uses Von Neumann weighting scheme.
+                    weighting; if False, uses Von Neumann (or Rook's rule).
     '''
     # Get the index of the center, on either axis
     c = int(np.floor(np.median(range(0, size))))
@@ -168,10 +169,11 @@ def kernel_idw_l1(size, band_num=None, normalize=False, moore_contiguity=False):
                 window[i,j] = 0
                 continue
 
-            window[i,j] = 1 / sum((abs(j - c), abs(i - c)))
-
             if moore_contiguity:
-                raise NotImplementedError("Moore contiguity/ Queen's rule not supported")
+                window[i,j] = 1 / max((abs(j - c), abs(i - c)))
+
+            else:
+                window[i,j] = 1 / sum((abs(j - c), abs(i - c)))
 
     if normalize:
         # Constraint: Sum of all weights must be equal to one IN EACH BAND
