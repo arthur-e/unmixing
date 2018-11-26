@@ -19,7 +19,6 @@ from pysptools.noise import MNF
 # For backwards compatibility in GDAL
 gdal.SetConfigOption('GDAL_ARRAY_OPEN_BY_FILENAME', 'TRUE')
 TEST_DIR = os.path.join(os.path.dirname(unmixing.__file__), 'test')
-DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(unmixing.__file__)), 'docs/data')
 
 class Tester(unittest.TestCase):
 
@@ -38,7 +37,6 @@ class Tester(unittest.TestCase):
 
 class FCLS(Tester):
     test_dir = TEST_DIR
-    data_dir = DATA_DIR
     test_data_100_110_hex_string = 'bea34345168cd1858fe5f9066c4403a806b9d6f2ffa7ddbdb3dd0ab354b513cd'
 
     def test_fcls_unmixing_with_single_endmember_spectra(self):
@@ -47,7 +45,7 @@ class FCLS(Tester):
         spectra.
         '''
         em_locs = [(326701, 4696895),(324978, 4699651), (328823, 4696835)]
-        arr, gt, wkt = as_array(os.path.join(self.data_dir,
+        arr, gt, wkt = as_array(os.path.join(self.test_dir,
             'LT05_020030_merge_19950712_stack_clip.tiff'))
         arr_mnf = mnf_rotation(arr).T
         endmembers = spectra_at_xy(arr_mnf, em_locs, gt, wkt)
@@ -64,7 +62,7 @@ class FCLS(Tester):
         spectra; result should be the same for 1 or 2 processes.
         '''
         em_locs = [(326701, 4696895),(324978, 4699651), (328823, 4696835)]
-        arr, gt, wkt = as_array(os.path.join(self.data_dir,
+        arr, gt, wkt = as_array(os.path.join(self.test_dir,
             'LT05_020030_merge_19950712_stack_clip.tiff'))
         endmembers = spectra_at_xy(mnf_rotation(arr).T, em_locs, gt, wkt)
         arr_mnf = mnf_rotation(arr).T
@@ -83,16 +81,15 @@ class FCLS(Tester):
 
 class SASMA(Tester):
     test_dir = TEST_DIR
-    data_dir = DATA_DIR
 
     def test_concatenation_of_endmember_arrays(self):
         '''
         Spectra arrays for multiple endmember types should be concatenated
         correctly; this step anticipates LSMA with multiple endmember spectra.
         '''
-        arr, gt, wkt = as_array(os.path.join(self.data_dir,
+        arr, gt, wkt = as_array(os.path.join(self.test_dir,
             'LT05_020030_merge_19950712_stack_clip.tiff'))
-        vbd, gt, wkt = as_array(os.path.join(self.data_dir,
+        vbd, gt, wkt = as_array(os.path.join(self.test_dir,
             'LT05_020030_merge_19950712_VBD_endmember_PIFs.tiff'))
         emv = np.where(vbd == 1, arr, 0)
         emb = np.where(vbd == 2, arr, 0)
