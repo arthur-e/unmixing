@@ -40,33 +40,16 @@ import pysptools.abundance_maps as sp_abundance
 import pysptools.classification as sp_classify
 import pysptools.material_count as sp_matcount
 
-def lazy(fn):
-    # Memoization for lazy-evaluated properties
-    # https://stackoverflow.com/questions/3012421/python-memoising-deferred-lookup-property-decorator
-    attr_name = '_lazy_' + fn.__name__
-    @property
-    @wraps(fn)
-    def lazyprop(self):
-        if not hasattr(self, attr_name):
-            setattr(self, attr_name, fn(self))
-        return getattr(self, attr_name)
-    return lazyprop
-
-
 class AbstractAbundanceMapper(object):
     def __init__(self, mixed_raster, gt, wkt, nodata=-9999, processes=1):
         assert np.all(np.greater(mixed_raster.shape, 0)), 'Raster array cannot have any zero-length axis'
         self.shp = mixed_raster.shape
         self.mixed_raster = mixed_raster
+        self.hsi = mixed_raster.T # HSI form: (p x m x n) as (n x m x p)
         self.gt = gt
         self.wkt = wkt
         self.nodata = nodata
         self.num_processes = processes
-
-    @lazy
-    def hsi(self):
-        'Return HSI cube: a (p x m x n) raster is transformed to (n x m x p)'
-        return self.mixed_raster.T
 
     def __partition__(self, base_array):
         # Creates index ranges for partitioning an array to work on over
