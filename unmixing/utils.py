@@ -478,7 +478,9 @@ def density_slice(rast, rel=np.less_equal, threshold=1000, nodata=-9999):
         np.not_equal(rastr, np.ones(rast.shape) * nodata)).astype(np.int0)
 
 
-def dump_raster(rast, rast_path, xoff=0, yoff=0, driver='GTiff', nodata=None):
+def dump_raster(
+        rast, rast_path, xoff=0, yoff=0, driver='GTiff', gdt=None,
+        nodata=None):
     '''
     Creates a raster file from a given gdal.Dataset instance. Arguments:
         rast        A gdal.Dataset; does NOT accept NumPy array
@@ -486,11 +488,14 @@ def dump_raster(rast, rast_path, xoff=0, yoff=0, driver='GTiff', nodata=None):
         xoff        Offset in the x-direction; should be provided when clipped
         yoff        Offset in the y-direction; should be provided when clipped
         driver      The name of the GDAL driver to use (determines file type)
+        gdt         The GDAL data type to use, e.g., see gdal.GDT_Float32
         nodata      The NoData value; defaults to -9999.
     '''
+    if gdt is None:
+        gdt = rast.GetRasterBand(1).DataType
     driver = gdal.GetDriverByName(driver)
-    sink = driver.Create(rast_path, rast.RasterXSize, rast.RasterYSize,
-        rast.RasterCount, rast.GetRasterBand(1).DataType)
+    sink = driver.Create(
+        rast_path, rast.RasterXSize, rast.RasterYSize, rast.RasterCount, int(gdt))
     assert sink is not None, 'Cannot create dataset; there may be a problem with the output path you specified'
     sink.SetGeoTransform(rast.GetGeoTransform())
     sink.SetProjection(rast.GetProjection())
