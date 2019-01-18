@@ -20,7 +20,6 @@ analysis (LSMA). Includes classes and functions:
 * `ravel_and_filter()`
 * `report_raster_dynamic_range()`
 * `subtract_endmember_and_normalize()`
-* `validate_abundance_by_forward_model()`
 '''
 
 import itertools
@@ -664,7 +663,8 @@ def iterate_endmember_combinations(
     return (spec_map, coord_map)
 
 
-def normalize_reflectance_within_image(rast, nodata=-9999, scale=100):
+def normalize_reflectance_within_image(
+    rast, band_range=(0, 5), nodata=-9999, scale=100):
     '''
     Following Wu (2004, Remote Sensing of Environment), normalizes the
     reflectances in each pixel by the average reflectance *across bands.*
@@ -684,9 +684,11 @@ def normalize_reflectance_within_image(rast, nodata=-9999, scale=100):
         rastr = rast.copy()
 
     shp = rastr.shape
+    b0, b1 = band_range # Get the beginning, end of band range
+    b1 += 1 # Ranges in Python are not inclusive, so add 1
     rastr_normalized = np.divide(
         rastr.reshape((shp[0], shp[1]*shp[2])),
-        rastr.mean(axis=0).reshape((1, shp[1]*shp[2])).repeat(shp[0], axis=0))
+        rastr[b0:b1,...].mean(axis=0).reshape((1, shp[1]*shp[2])).repeat(shp[0], axis=0))
 
     # Recover original shape; scale if necessary
     rastr_normalized = rastr_normalized.reshape(shp)
