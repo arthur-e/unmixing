@@ -13,8 +13,11 @@ Contains:
 * `combine_dicts()`
 * `combine_masks()`
 * `composite()`
+* `copy_nodata()`
 * `density_slice()`
 * `dump_raster()`
+* `fill_nan_bandwise()`
+* `fill_nodata_bandwise()`
 * `get_coord_transform()`
 * `intersect_rasters()`
 * `mae()`
@@ -456,6 +459,38 @@ def composite2(
     return final_stack
 
 
+def copy_nodata(source, target, nodata=-9999):
+    '''
+    Copies the NoData values from a source raster or raster array into a
+    target raster or raster array. That is, source's NoData values are
+    embedded in target. This is useful, for instance, when you want to mask
+    out dropped scanlines in a Landsat 7 image; these areas are NoData in the
+    EOS HDF but they are not included in the QA mask. Arguments:
+        source  A gdal.Dataset or a NumPy array
+        target  A gdal.Dataset or a NumPy array
+        nodata  The NoData value to look for (and embed)
+    '''
+    # Can accept either a gdal.Dataset or numpy.array instance
+    if not isinstance(source, np.ndarray):
+        source = source.ReadAsArray()
+
+    if not isinstance(target, np.ndarray):
+        target = target.ReadAsArray()
+
+    else:
+        target = target.copy()
+
+    assert source.ndim == target.ndim, "Source and target rasters must have the same number of axes"
+
+    if source.ndim == 3:
+        assert source.shape[1:] == target.shape[1:], "Source and target rasters must have the same shape (not including band axis)"
+        return np.where(source[0,...] == nodata, nodata, target)
+
+    else:
+        assert source.shape == target.shape, "Source and target rasters must have the same shape"
+        return np.where(source == nodata, nodata, target)
+
+
 def density_slice(rast, rel=np.less_equal, threshold=1000, nodata=-9999):
     '''
     Returns a density slice from a given raster. Arguments:
@@ -525,8 +560,7 @@ def fill_nodata_bandwise(arr, fill_values=None, nodata=-9999):
         fill_values A user-specified vector of values, one for each band
         nodata      The NoData value to fill
     '''
-    arr2 = arr.copy()
-    arr2[arr2 == -9999] = np.nan
+    arr2 = np.where(arr == -9999, np.nan, arr)
     return fill_nan_bandwise(arr2, fill_values = fill_values)
 
 
