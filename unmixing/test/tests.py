@@ -200,23 +200,23 @@ class LSMA(Tester):
         ]
 
         # These tests use the function with masks that handles NoData correctly
-        self.assertTrue(np.where(np.round(composite(('max', 'median'), *ex1, normalize=None), 2) == np.array([[[-9999., 0.9], [0.4, 0.5]], [[-9999., 0.25], [0.4, 0.35]]]), True, False).all())
-        self.assertTrue(np.where(np.round(composite(('min', 'median'), *ex1, normalize=None), 2) == np.array([[[-9999., 0.03], [0.4, 0.2]], [[-9999., 0.25], [0.4, 0.35]]]), True, False).all())
-        self.assertTrue(np.where(np.round(composite(('max', 'median'), *ex1, normalize=None, dtype=int), 2) == np.array([[[-9999., 0.9], [0.4, 0.5]], [[-9999., 0.25], [0.4, 0.35]]]), True, False).all()) # Setting `dtype=int` simulates the type coercion error we want to test
+        self.assertTrue(np.where(np.round(composite2(('max', 'median'), *ex1, normalize=None), 2) == np.array([[[-9999., 0.9], [0.4, 0.5]], [[-9999., 0.25], [0.4, 0.35]]]), True, False).all())
+        self.assertTrue(np.where(np.round(composite2(('min', 'median'), *ex1, normalize=None), 2) == np.array([[[-9999., 0.03], [0.4, 0.2]], [[-9999., 0.25], [0.4, 0.35]]]), True, False).all())
+        self.assertTrue(np.where(np.round(composite2(('max', 'median'), *ex1, normalize=None, dtype=int), 2) == np.array([[[-9999., 0.9], [0.4, 0.5]], [[-9999., 0.25], [0.4, 0.35]]]), True, False).all()) # Setting `dtype=int` simulates the type coercion error we want to test
 
         # These tests use the function without masks that requires star functions
-        self.assertTrue(np.where(np.round(composite2(('max', 'median'), *ex1, normalize=None), 2) == np.array([[[-9999., 0.9], [0.4, 0.5]], [[-9999., 0.25], [0.4, 0.35]]]), True, False).all())
-        self.assertTrue(np.where(np.round(composite2(('min', 'median'), *ex1, normalize=None), 2) == np.array([[[-9999., -9999.], [-9999., -9999.]], [[-9999., 0.25], [0.4, 0.35]]]), True, False).all())
-        self.assertTrue(np.where(np.round(composite2(('max', 'median'), *ex1, normalize=None, dtype=int), 2) == np.array([[[-9999., 0.9], [0.4, 0.5]], [[-9999., 0], [0, 0]]]), True, False).all()) # Setting `dtype=int` simulates the type coercion error we want to test
+        self.assertTrue(np.where(np.round(composite3(('max', 'median'), *ex1, normalize=None), 2) == np.array([[[-9999., 0.9], [0.4, 0.5]], [[-9999., 0.25], [0.4, 0.35]]]), True, False).all())
+        self.assertTrue(np.where(np.round(composite3(('min', 'median'), *ex1, normalize=None), 2) == np.array([[[-9999., -9999.], [-9999., -9999.]], [[-9999., 0.25], [0.4, 0.35]]]), True, False).all())
+        self.assertTrue(np.where(np.round(composite3(('max', 'median'), *ex1, normalize=None, dtype=int), 2) == np.array([[[-9999., 0.9], [0.4, 0.5]], [[-9999., 0], [0, 0]]]), True, False).all()) # Setting `dtype=int` simulates the type coercion error we want to test
 
         # Should be able to subtract an endmember by setting None
-        self.assertTrue(np.where(composite(('max', None), *ex1, normalize=None) == np.array([[[-9999., 0.9], [0.4, 0.5]]]), True, False).all())
         self.assertTrue(np.where(composite2(('max', None), *ex1, normalize=None) == np.array([[[-9999., 0.9], [0.4, 0.5]]]), True, False).all())
+        self.assertTrue(np.where(composite3(('max', None), *ex1, normalize=None) == np.array([[[-9999., 0.9], [0.4, 0.5]]]), True, False).all())
 
         # When subtracting one endmember from two and normalizing, all non-null
         #   pixels should sum to one
-        self.assertTrue(np.where(composite(('max', None), *ex1, normalize='sum') == np.array([[[-9999., 1], [1, 1]]]), True, False).all())
         self.assertTrue(np.where(composite2(('max', None), *ex1, normalize='sum') == np.array([[[-9999., 1], [1, 1]]]), True, False).all())
+        self.assertTrue(np.where(composite3(('max', None), *ex1, normalize='sum') == np.array([[[-9999., 1], [1, 1]]]), True, False).all())
 
     def test_convex_hull_graham(self):
         '''Should correctly calculate a convex hull.'''

@@ -23,6 +23,7 @@ Contains:
 * `mae()`
 * `mask_ledaps_qa()`
 * `mask_saturation()`
+* `partition()`
 * `pixel_to_geojson()`
 * `pixel_to_xy()`
 * `rmse()`
@@ -37,6 +38,8 @@ import json
 import os
 import re
 import numpy as np
+from concurrent.futures import ProcessPoolExecutor
+from functools import partial
 from osgeo import gdal, gdalconst, gdal_array, gdalnumeric, ogr, osr
 
 def as_array(path, band_axis=True):
@@ -324,11 +327,50 @@ def combine_masks(*masks, multiply=False):
 
 
 def composite(
+        *rasters, target_band=1, reducer='median', normalize='sum',
+        nodata=-9999.0, dtype=np.float32, processes=4):
+    '''
+    '''
+    if reducer not in ('median', 'min', 'max', 'mean'):
+        raise ValueError('Invalid reducer name')
+
+    shp = rasters[0].shape
+    assert all(map(lambda x: x == shp, [r.shape for r in rasters])), 'Rasters must have the same shape'
+
+    # For single-band rasters...
+    if rasters[0].ndim < 3:
+        shp = (1, shp[0], shp[1])
+        rasters = list(map(lambda r: r.reshape(shp), rasters))
+
+    # Stack the rasters in a continuous, single-band "tapestry" using
+    #   vstack(), then cut out the rasters concatenated in this way into
+    #   separate bands using reshape()
+    b = target_band
+    stack = np.vstack(map(lambda r: r[b,...], rasters))\
+        .reshape((len(rasters), shp[1] * shp[2]))
+    # Insert nan into NoData locations
+    stack = np.where(stack == nodata, np.nan, stack)
+
+    reducer_func = partial(getattr(np, 'nan%s' % reducer), axis = 0)
+    # Get index ranges for each process to work on
+    work = partition(stack, num_processes = processes, axis = 1)
+    with ProcessPoolExecutor(max_workers = processes) as executor:
+        all_results = executor.map( # Work done pixel-wise
+            reducer_func, [stack[:,i:j] for i, j in work])
+
+    # Stack each reduced band (and reshape to multi-band image)
+    result = np.concatenate(list(all_results), axis = 0)\
+        .reshape((1, shp[1], shp[2]))
+
+    return np.where(np.isnan(result), nodata, result)
+
+
+def composite2(
         reducers, *rasters, normalize='sum', nodata=-9999.0,
         dtype=np.float32):
     '''
     NOTE: Uses masked arrays in NumPy and therefore is MUCH slower than the
-    `composite2()` function, which is equivalent in output.
+    `composite3()` function, which is equivalent in output.
 
     Creates a multi-image (multi-date) composite from input rasters. The
     reducers argument specifies, in the order of the bands (endmembers), how
@@ -385,7 +427,7 @@ def composite(
     return final_stack.filled()
 
 
-def composite2(
+def composite3(
         reducers, *rasters, normalize='sum', nodata=-9999.0,
         dtype=np.float32):
     '''
@@ -805,6 +847,24 @@ def pixel_to_geojson(pixel_pairs, gt=None, wkt=None, path=None, indent=2):
         })
 
     return json.dumps(doc, sort_keys=False, indent=indent)
+
+
+def partition(array, num_processes, axis=0):
+    '''
+    Creates index ranges for partitioning an array to work on over multiple
+    processes. Arguments:
+        array           The 2-dimensional array to paritition
+        num_processes   The number of processes desired
+    '''
+    N = array.shape[axis]
+    P = (num_processes + 1) # Number of breaks (number of partitions + 1)
+    # Break up the indices into (roughly) equal parts
+    partitions = list(zip(np.linspace(0, N, P, dtype=int)[:-1],
+        np.linspace(0, N, P, dtype=int)[1:]))
+    # Final range of indices should end +1 past last index for completeness
+    work = partitions[:-1]
+    work.append((partitions[-1][0], partitions[-1][1] + 1))
+    return work
 
 
 def pixel_to_xy(pixel_pairs, gt=None, wkt=None, path=None, dd=False):

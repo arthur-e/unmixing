@@ -30,7 +30,7 @@ import numpy as np
 from concurrent.futures import ProcessPoolExecutor
 from functools import reduce, partial, wraps
 from unmixing.transform import mnf_rotation
-from unmixing.utils import array_to_raster, as_array, as_raster, dump_raster, xy_to_pixel, pixel_to_xy, spectra_at_xy, rmse
+from unmixing.utils import array_to_raster, as_array, as_raster, dump_raster, partition, xy_to_pixel, pixel_to_xy, spectra_at_xy, rmse
 from lxml import etree
 from osgeo import gdal, ogr, osr
 from pykml.factory import KML_ElementMaker as KML
@@ -49,19 +49,6 @@ class AbstractAbundanceMapper(object):
         self.wkt = wkt
         self.nodata = nodata
         self.num_processes = processes
-
-    def __partition__(self, base_array):
-        # Creates index ranges for partitioning an array to work on over
-        #   multiple processes
-        N = base_array.shape[0]
-        P = (self.num_processes + 1) # Number of breaks (number of partitions + 1)
-        # Break up the indices into (roughly) equal parts
-        partitions = list(zip(np.linspace(0, N, P, dtype=int)[:-1],
-            np.linspace(0, N, P, dtype=int)[1:]))
-        # Final range of indices should end +1 past last index for completeness
-        work = partitions[:-1]
-        work.append((partitions[-1][0], partitions[-1][1] + 1))
-        return work
 
 
 class AbstractExtractor(object):
@@ -210,7 +197,7 @@ class FCLSAbundanceMapper(AbstractAbundanceMapper):
         base_array = self.hsi[:,:,0:k].reshape((shp[0] * shp[1], k))
 
         # Get indices for each process' work range
-        work = self.__partition__(base_array)
+        work = partition(base_array, self.num_processes, axis=0)
 
         with ProcessPoolExecutor(max_workers = self.num_processes) as executor:
             # We're working with multiple endmembers
