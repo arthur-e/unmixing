@@ -291,3 +291,21 @@ def interpolate_endmember_spectra(em_map, window, cval=0, nodata=-9999):
                 np.multiply(np.where(x == cval, 0, 1), window)),
             mode = 'constant', cval = cval, footprint = np.ones((w,w)))
     return em_avg_map.reshape((1, shp[1], shp[2]))
+
+
+def mask_unstable_abundances(abundances, band=1, nodata=-9999, tol=0.9999):
+    '''
+    SASMA abundance estimates can be unstable; similar spectra will
+    sometimes be unmixed very differently, where one mixture results in an
+    abundance estimate of 100% for a single endmember that accounts for far
+    less than 100% in another mixture (when the sum-to-one constraint is
+    used). The approach used to correct this, here, is to mask out pixels
+    in the given band which are equal to 1.0 exactly, which may not be a
+    good policy in all cases (obviously, some endmembers are equal to 1.0
+    exactly in some cases). Arguments:
+        raster_array    The input abundance map to be cleaned
+        band            The band that is erroneously estimated to be 100%
+                        for some pixels
+    '''
+    abundances[:,abundances[band,...] > tol] = nodata
+    return abundances

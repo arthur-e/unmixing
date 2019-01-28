@@ -327,9 +327,20 @@ def combine_masks(*masks, multiply=False):
 
 
 def composite(
-        *rasters, target_band=1, reducer='median', normalize='sum',
-        nodata=-9999.0, dtype=np.float32, processes=4):
+        *rasters, target_band=1, reducer='median', nodata=-9999.0,
+        dtype=np.float32, processes=1):
     '''
+    Composites multiple rasters in a single band. Compared to composite2()
+    and composite3(), this function is extremely fast but does not support
+    normalization and will not composite more than one band at a time.
+    Arguments:
+        rasters     The input rasters to composite
+        target_band The index of the band to composite
+        reducer     The name of the reducer function, either:
+                    "median", "min", "max", or "mean"
+        nodata      The NoData value to ignore in compositing
+        dtype       The data type to enforce in the output
+        processes   (Optional) Number of processes to use
     '''
     if reducer not in ('median', 'min', 'max', 'mean'):
         raise ValueError('Invalid reducer name')
@@ -361,7 +372,6 @@ def composite(
     # Stack each reduced band (and reshape to multi-band image)
     result = np.concatenate(list(all_results), axis = 0)\
         .reshape((1, shp[1], shp[2]))
-
     return np.where(np.isnan(result), nodata, result)
 
 
