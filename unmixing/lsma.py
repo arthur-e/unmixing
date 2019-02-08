@@ -275,11 +275,9 @@ class FCLSAbundanceMapper(AbstractAbundanceMapper):
         shp = rastr.shape
         arr = rastr.reshape((shp[0], shp[1]*shp[2]))
 
-        # Generate 1000 random sampling indices
+        # Generate random sampling indices
         idx = np.random.choice(np.arange(0, arr.shape[1]), r)
 
-        # Predict the reflectances!
-        stats = []
         # Get the predicted reflectances
         preds = predict_spectra_from_abundance(ravel(abundances), ref_spectra)
         assert preds.shape == arr.shape, 'Prediction and observation matrices are not the same size'
