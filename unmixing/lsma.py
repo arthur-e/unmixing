@@ -799,10 +799,12 @@ def report_raster_dynamic_range(
         tpl     The template for the GDAL subdataset names
         lj      The left justification (for text output)
     '''
-    def dr(stats):
-        return stats[1] - stats[0]
-
+    # ComputeStatistics() returns the (0) minimum, (1) maximum, (2) mean and
+    #   (3) standard deviation; DR is max - min
+    dr = lambda stats: stats[1] - stats[0]
+    stddev = lambda stats: stats[3]
     dr_by_band = [] # Dynamic range by band
+    stddev_by_band = []
     rast, gt0, wkt = as_raster(path)
 
     # If the dataset is an HDF or some other linked dataset
@@ -816,15 +818,18 @@ def report_raster_dynamic_range(
                 pass
 
             dr_by_band.append(dr(stats))
+            stddev_by_band.append(dr(stats))
 
     # If, instead, the dataset is a flat stack like a GeoTIFF
     else:
         for i, b in enumerate(bands):
             stats = rast.GetRasterBand(i + 1).ComputeStatistics(False)
             dr_by_band.append(dr(stats))
+            stddev_by_band.append(dr(stats))
 
-    print('{:.2f} ({:.0f} s.d.) -- {:s}'.format(
-        np.mean(dr_by_band), sum(dr_by_band), os.path.basename(path).ljust(lj)))
+    print('{:.2f} ({:.0f} max std. dev.) -- {:s}'.format(
+        np.mean(dr_by_band), max(stddev_by_band),
+            os.path.basename(path).ljust(lj)))
 
 
 def subtract_endmember_and_normalize(abundances, e):
