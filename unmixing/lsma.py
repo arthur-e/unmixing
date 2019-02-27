@@ -232,7 +232,7 @@ class FCLSAbundanceMapper(AbstractAbundanceMapper):
     def validate_by_forward_model(
             self, ref_image, abundances, ref_spectra=None,
             ref_em_locations=None, dd=False, nodata=-9999, r=10000,
-            as_pct=True):
+            as_pct=True, convert_nodata=False):
         '''
         Validates LSMA result in the forward model of reflectance, i.e.,
         compares the observed reflectance in the original (mixed) image to the
@@ -257,6 +257,9 @@ class FCLSAbundanceMapper(AbstractAbundanceMapper):
             r           The number of random samples to take in calculating
                         RMSE.
             as_pct      Report normalized RMSE (as a percentage).
+            convert_nodata
+                        True to convert all NoData values to zero (as in zero
+                        reflectance)
         '''
         rastr = ref_image.copy()
         assert (ref_spectra is not None) or (ref_em_locations is not None), 'When single endmember spectra are used, either ref_spectra or ref_em_locations must be provided'
@@ -269,23 +272,22 @@ class FCLSAbundanceMapper(AbstractAbundanceMapper):
             ref_spectra = spectra_at_xy(ref_image, ref_em_locations,
                 self.gt, self.wkt, dd = dd)
 
-        # Convert the NoData values to zero reflectance; reshape the array
-        rastr[rastr == nodata] = 0
-        ref_spectra[ref_spectra == nodata] = 0
-        shp = rastr.shape
-        arr = rastr.reshape((shp[0], shp[1]*shp[2]))
+        # Convert the NoData values to zero reflectance
+        if convert_nodata:
+            rastr[rastr == nodata] = 0
+            ref_spectra[ref_spectra == nodata] = 0
 
+        shp = rastr.shape # Reshape the arrays
+        arr = rastr.reshape((shp[0], shp[1]*shp[2]))
         # Generate random sampling indices
         idx = np.random.choice(np.arange(0, arr.shape[1]), r)
-
         # Get the predicted reflectances
         preds = predict_spectra_from_abundance(ravel(abundances), ref_spectra)
         assert preds.shape == arr.shape, 'Prediction and observation matrices are not the same size'
 
         # Take the mean RMSE (sum of RMSE divided by number of pixels), after
         #   the residuals are normalized by the number of endmembers
-        rmse_value = rmse(arr, preds, idx, n = ref_spectra.shape[0]).sum() / r
-
+        rmse_value = rmse(arr, preds, idx, n = ref_spectra.shape[0], nodata = nodata).sum() / r
         norm = 1
         if as_pct:
             # Divide by the range of the measured data; minimum is zero
@@ -463,12 +465,17 @@ def endmembers_by_maximum_volume(
         rast        The raster that describes the feature space
         targets     The coordinates (in feature space) of all other points
         ref_target  (Optional) Can constrain the volume formed by one point
+        ndim        The number of dimensions in which to calculate the solution
         gt          The GDAL GeoTransform
         wkt         The GDAL WKT projection
         dd          True for coordinates in decimal degrees
 
     Angle calculation from:
     http://stackoverflow.com/questions/2827393/angles-between-two-n-dimensional-vectors-in-python/13849249#13849249
+
+    NOTE: Argument ndim determines how many endmembers are returned; the
+    production of combinations depends on a square matrix, so ndim must also
+    be equal to or less than the dimensionality of the image array.
     '''
     def calc_volume(spec_map):
         # Calculate the absolute volume of the determinant of the volume spanned

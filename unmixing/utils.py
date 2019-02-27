@@ -927,7 +927,7 @@ def pixel_to_xy(pixel_pairs, gt=None, wkt=None, path=None, dd=False):
     return xy_pairs
 
 
-def rmse(reference, predictions, idx=None, n=1):
+def rmse(reference, predictions, idx=None, n=1, nodata=-9999):
     '''
     RMSE for (p x n) raster arrays, where p is the number of bands and n is
     the number of pixels. RMSE is calculated after Powell et al. (2007) in
@@ -943,8 +943,11 @@ def rmse(reference, predictions, idx=None, n=1):
         residuals = (reference - predictions).reshape((1, shp[-2], shp[-1]))
 
     else:
+        idx = idx[reference[:,idx][0,:] != nodata] # Strip out NoData areas
         if len(reference.shape) == 3:
-            residuals = reference.reshape((shp[0], shp[1]*shp[2]))[:, idx] - predictions.reshape((shp[0], shp[1]*shp[2]))[:, idx]
+            residuals = reference.reshape(
+                (shp[0], shp[1]*shp[2]))[:, idx] - predictions.reshape(
+                    (shp[0], shp[1]*shp[2]))[:, idx]
 
         else:
             residuals = reference[:, idx] - predictions[:, idx]
