@@ -136,6 +136,9 @@ def array_to_raster(a, gt, wkt, xoff=None, yoff=None, dtype=None):
         # For backwards compatibility with older version of GDAL
         rast = gdal.Open(gdalnumeric.GetArrayFilename(a))
 
+    except:
+        rast = gdal_array.OpenArray(a)
+
     kwargs = dict()
     if xoff is not None and yoff is not None:
         kwargs = dict(xoff=xoff, yoff=yoff)
@@ -154,7 +157,16 @@ def array_to_raster_clone(a, proto, xoff=None, yoff=None):
         xoff    The offset in the x-direction; should be provided when clipped
         yoff    The offset in the y-direction; should be provided when clipped
     '''
-    rast = gdal_array.OpenNumPyArray(a)
+    try:
+        rast = gdal_array.OpenNumPyArray(a)
+
+    except AttributeError:
+        # For backwards compatibility with older version of GDAL
+        rast = gdal.Open(gdalnumeric.GetArrayFilename(a))
+
+    except:
+        rast = gdal_array.OpenArray(a)
+        
     kwargs = dict()
     if xoff is not None and yoff is not None:
         kwargs = dict(xoff=xoff, yoff=yoff)

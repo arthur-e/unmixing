@@ -19,12 +19,12 @@ setup(name = 'unmixing',
         'numpy >= 1.8.2',
         'scipy >= 0.13.3',
         'matplotlib >= 1.3.1',
-        'cvxopt==1.1.8',
+        'cvxopt >= 1.1.8',
         'GDAL >= 2.1.0',
         'pykml == 0.1.0',
         'pysptools >= 0.13.5',
         'Pillow >= 2.3.0',
-        'scikit-learn==0.17.1'
+        'scikit-learn >= 0.21.3'
     ],
     package_data = {
         'unmixing.test': [

@@ -20,6 +20,9 @@ from pysptools.noise import MNF
 gdal.SetConfigOption('GDAL_ARRAY_OPEN_BY_FILENAME', 'TRUE')
 TEST_DIR = os.path.join(os.path.dirname(unmixing.__file__), 'test')
 
+# Required to get consistent results for WKT strings
+os.environ['OGR_WKT_PRECISION'] = '7'
+
 class Tester(unittest.TestCase):
 
     @classmethod
@@ -253,8 +256,8 @@ class LSMA(Tester):
         geometries = point_to_pixel_geometry(xy_coords, source_epsg = 32617, target_epsg=4326)
 
         self.assertTrue(isinstance(geometries[0], ogr.Geometry))
-        self.assertEqual(geometries[0].ExportToWkt(), 'POLYGON ((-84.8920166606528 42.4576139546101 0,-84.8916526360905 42.4576263335341 0,-84.8916359196253 42.457356779353 0,-84.8919999426335 42.4573444005452 0,-84.8920166606528 42.4576139546101 0))')
-        self.assertEqual(geometries[1].ExportToWkt(), 'POLYGON ((-84.5128222586605 42.1997431501765 0,-84.5124595623182 42.1997542699897 0,-84.5124446081078 42.1994845879707 0,-84.5128073029137 42.1994734682621 0,-84.5128222586605 42.1997431501765 0))')
+        self.assertEqual(geometries[0].ExportToWkt(), 'POLYGON ((-84.89202 42.45761 0,-84.89165 42.45763 0,-84.89164 42.45736 0,-84.892 42.45734 0,-84.89202 42.45761 0))')
+        self.assertEqual(geometries[1].ExportToWkt(), 'POLYGON ((-84.51282 42.19974 0,-84.51246 42.19975 0,-84.51244 42.19948 0,-84.51281 42.19947 0,-84.51282 42.19974 0))')
 
     def test_principle(self):
         '''
