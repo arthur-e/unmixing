@@ -139,12 +139,14 @@ def array_to_raster(a, gt, wkt, xoff=None, yoff=None, dtype=None):
     except:
         rast = gdal_array.OpenArray(a)
 
-    kwargs = dict()
-    if xoff is not None and yoff is not None:
-        kwargs = dict(xoff=xoff, yoff=yoff)
-
     rast.SetGeoTransform(gt)
     rast.SetProjection(wkt)
+    if xoff is not None and yoff is not None:
+        # Bit of a hack; essentially, re-create the raster but with the
+        #   correct X and Y offsets (don't know how to do this without the
+        #   use of CopyDatasetInfo())
+        return array_to_raster_clone(a, rast, xoff, yoff)
+
     return rast
 
 
@@ -166,7 +168,7 @@ def array_to_raster_clone(a, proto, xoff=None, yoff=None):
 
     except:
         rast = gdal_array.OpenArray(a)
-        
+
     kwargs = dict()
     if xoff is not None and yoff is not None:
         kwargs = dict(xoff=xoff, yoff=yoff)
@@ -577,15 +579,11 @@ def density_slice(rast, rel=np.less_equal, threshold=1000, nodata=-9999):
         np.not_equal(rastr, np.ones(rast.shape) * nodata)).astype(np.int0)
 
 
-def dump_raster(
-        rast, rast_path, xoff=0, yoff=0, driver='GTiff', gdt=None,
-        nodata=None):
+def dump_raster(rast, rast_path, driver='GTiff', gdt=None, nodata=None):
     '''
     Creates a raster file from a given gdal.Dataset instance. Arguments:
         rast        A gdal.Dataset; does NOT accept NumPy array
         rast_path   The path of the output raster file
-        xoff        Offset in the x-direction; should be provided when clipped
-        yoff        Offset in the y-direction; should be provided when clipped
         driver      The name of the GDAL driver to use (determines file type)
         gdt         The GDAL data type to use, e.g., see gdal.GDT_Float32
         nodata      The NoData value; defaults to -9999.

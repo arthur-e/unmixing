@@ -1,7 +1,7 @@
 from distutils.core import setup
 
 setup(name = 'unmixing',
-    version = '0.2.3.dev',
+    version = '0.2.4.dev',
     description = 'Interactive tools for spectral mixture analysis of multispectral raster data',
     author = 'K. Arthur Endsley',
     author_email = 'endsley@umich.edu',
