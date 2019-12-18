@@ -7,7 +7,7 @@ setup(name = 'unmixing',
     author_email = 'endsley@umich.edu',
     url = 'https://www.github.com/arthur-e/unmixing',
     classifiers = [
-        'Development Status :: 3',
+        'Development Status :: 3 - Alpha',
         'Intended Audience :: Science/Research',
         'Topic :: Scientific/Engineering',
         'Topic :: Scientific/Engineering :: GIS'
@@ -15,6 +15,7 @@ setup(name = 'unmixing',
     keywords = ['lsma spectral mixture analysis remote sensing raster'],
     packages = ['unmixing', 'unmixing.test'],
     py_modules = ['utils', 'lsma', 'sasma', 'transform', 'visualize', 'tests'],
+    python_requires = '>=3',
     install_requires = [
         'numpy >= 1.8.2',
         'scipy >= 0.13.3',
