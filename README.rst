@@ -1,3 +1,6 @@
+.. image:: https://zenodo.org/badge/DOI/10.5281/zenodo.3585979.svg
+   :target: https://doi.org/10.5281/zenodo.3585979
+
 ==========================
 Interactive Unmixing Tools
 ==========================
